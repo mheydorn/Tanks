@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include <gdk/gdkkeysyms.h>
 #include <iostream>
-
+#include <math.h>
 
 using namespace std;
 //the global pixmap that will serve as our buffer
@@ -11,16 +11,18 @@ static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
 int boxWidth = 10;
-int x,y = 0;//tankLocation
-int rotationAngle = -45; // tank rotation
+double tankX,tankY = 0;//tankLocation
+int rotationAngle = 0; // tank rotation
 
 bool movingLeft = false;
 bool movingRight = false;
 int speed = 0;
 
+
 bool aDown = false;
 bool dDown = false;
-
+bool wDown = false;
+bool sDown = false;
 
 
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
@@ -30,11 +32,16 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
         {
             case GDK_a:
                 aDown = true; //Move left
-                speed = -1;
                 break;
             case GDK_d:
                 dDown = true; //Move right
-                speed = 1;
+                break;
+
+            case GDK_w:
+                wDown = true; //Move left
+                break;
+            case GDK_s:
+                sDown = true; //Move right
                 break;
             default:
                 return FALSE; 
@@ -44,19 +51,19 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
         {
             case GDK_a:
                 aDown = false; //Stop move left
-                speed = 0;
                 break;
             case GDK_d:
                 dDown = false; //Stop move right
-                speed = 0;
                 break;
+            case GDK_w:
+                wDown = false; //Stop move left
+                break;
+            case GDK_s:
+                sDown = false; //Stop move right
+                break;
+
             default:
                 return FALSE; 
-        }
-        if(aDown){
-            speed = -1;
-        }else if(dDown){
-            speed = 1;
         }
     }
    return FALSE; 
@@ -103,7 +110,7 @@ static int currently_drawing = 0;
 void *do_draw(void *ptr){
 
     currently_drawing = 1;
-    //carrot
+    //carrots
     int width, height;
     gdk_threads_enter();
     gdk_drawable_get_size(pixmap, &width, &height);
@@ -113,37 +120,25 @@ void *do_draw(void *ptr){
     cairo_surface_t *cst = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
     cairo_t *cr = cairo_create(cst);
 
-
-
-
     cairo_set_source_rgb (cr, 0, 0, 0.0); //Background color
     cairo_paint(cr);// Makes things work right
 
-    x += speed;
 
 
-    int w = cairo_image_surface_get_width (tankImage);
-    int h = cairo_image_surface_get_height (tankImage);
 
-    int rotationAngle = -45;
-    cairo_translate (cr, 128.0, 128.0);
+    int tankWidth = cairo_image_surface_get_width (tankImage);
+    int tankHeight = cairo_image_surface_get_height (tankImage);
+
+    cairo_translate (cr, tankX, tankY);
     cairo_rotate (cr, rotationAngle  * 3.14159/180);
     cairo_scale  (cr, 0.15, 0.15);
-    cairo_translate (cr, -0.5*w, -0.5*h);
-    cairo_set_source_surface (cr, tankImage, 0, 0);
+    cairo_translate (cr, -tankWidth/2, -tankHeight/2);
+    //cairo_translate (cr, (int)tankX, (int)tankY);
+
+    //cairo_set_source_surface (cr, tankImage, x - tankWidth/2, y - tankHeight/2);
+    //cairo_set_source_surface (cr, tankImage,  - tankWidth/2*cos(rotationAngle  * 3.14159/180) , -tankHeight/2*sin(rotationAngle*3.14159/180));
+    cairo_set_source_surface (cr, tankImage, 0, 0 );
     cairo_paint (cr);
-
-    cr = cairo_create(cst);
-
-    //For each row
-    for(y=50; y < 100; ++y){
-        cairo_set_source_rgb (cr, 1.0, 0.0, 0.0);
-        cairo_move_to(cr, x,y);
-        cairo_line_to(cr, x + boxWidth,y);
-        cairo_stroke(cr);
-    }
-
-
 
     cairo_destroy(cr);
 
@@ -174,9 +169,44 @@ void *do_draw(void *ptr){
     return NULL;
 }
 
+double degreeToRad(int degree){
+    return (2*3.14159 * degree)/(360.0);
+
+}
+
+
+
 gboolean timer_exe(GtkWidget * window){
 
     static gboolean first_execution = TRUE;
+    int rotationAngleMul = 1;
+    int speedMultiplier = 1;
+//cars
+    //Update vehicle position and stuff
+    if(aDown){
+        rotationAngle -= rotationAngleMul;
+        cout << "angle = " << rotationAngle << "\n";
+    }else if(dDown){
+        rotationAngle += rotationAngleMul;
+        cout << "angle = " << rotationAngle << "\n";
+    }
+    rotationAngle = rotationAngle % 360;
+
+    if(wDown){
+        tankX += -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        tankY += -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+        cout << "xPortion = " << -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        cout << "yPortion = " << -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+        cout << "tankX = " << tankX << "\n";
+        cout << "tankY = " << tankY << "\n";
+    }else if(sDown){
+        tankX += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        tankY += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+    }
+
 
     //use a safe function to get the value of currently_drawing so
     //we don't run into the usual multithreading issues
