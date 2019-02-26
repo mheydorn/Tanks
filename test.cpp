@@ -4,6 +4,7 @@
 #include <gdk/gdkkeysyms.h>
 #include <iostream>
 #include <math.h>
+#include <list>
 
 using namespace std;
 //the global pixmap that will serve as our buffer
@@ -23,7 +24,45 @@ bool aDown = false;
 bool dDown = false;
 bool wDown = false;
 bool sDown = false;
+bool spaceDown = false;
 
+GtkWidget *window = NULL;
+int bulletSpeedMultiplier;
+
+
+double degreeToRad(int degree){
+    return (2*3.14159 * degree)/(360.0);
+}
+
+class Bullet{
+    int dx;
+    int dy;
+    int x;
+    int y;
+    public:
+    Bullet(){
+        int angle = rotationAngle;
+        dx = (bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
+        dy = (bulletSpeedMultiplier * sin(degreeToRad(angle) + 3.14159/2));
+        this->x = tankX;
+        this->y = tankY;
+    
+    }
+
+    void update(){
+        x += dx;
+        y += dy;
+    }
+};
+
+
+list<Bullet*> bullets;
+
+void fireBullet(){
+    Bullet* b = new Bullet();
+    bullets.push_back(b);
+
+}
 
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
@@ -43,6 +82,10 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
             case GDK_s:
                 sDown = true; //Move right
                 break;
+            case GDK_space:
+                spaceDown = true;
+                fireBullet();
+                break;
             default:
                 return FALSE; 
         }
@@ -60,6 +103,9 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
                 break;
             case GDK_s:
                 sDown = false; //Stop move right
+                break;
+            case GDK_space:
+                spaceDown = false;
                 break;
 
             default:
@@ -102,7 +148,7 @@ gboolean on_window_expose_event(GtkWidget * da, GdkEventExpose * event, gpointer
 }
 
 cairo_surface_t *tankImage;
-
+cairo_surface_t *bulletImage;
 
 static int currently_drawing = 0;
 //do_draw will be executed in a separate thread whenever we would like to update
@@ -110,6 +156,9 @@ static int currently_drawing = 0;
 void *do_draw(void *ptr){
 
     currently_drawing = 1;
+
+
+
     //carrots
     int width, height;
     gdk_threads_enter();
@@ -133,10 +182,7 @@ void *do_draw(void *ptr){
     cairo_rotate (cr, rotationAngle  * 3.14159/180);
     cairo_scale  (cr, 0.15, 0.15);
     cairo_translate (cr, -tankWidth/2, -tankHeight/2);
-    //cairo_translate (cr, (int)tankX, (int)tankY);
 
-    //cairo_set_source_surface (cr, tankImage, x - tankWidth/2, y - tankHeight/2);
-    //cairo_set_source_surface (cr, tankImage,  - tankWidth/2*cos(rotationAngle  * 3.14159/180) , -tankHeight/2*sin(rotationAngle*3.14159/180));
     cairo_set_source_surface (cr, tankImage, 0, 0 );
     cairo_paint (cr);
 
@@ -169,16 +215,13 @@ void *do_draw(void *ptr){
     return NULL;
 }
 
-double degreeToRad(int degree){
-    return (2*3.14159 * degree)/(360.0);
-
-}
 
 
 
 gboolean timer_exe(GtkWidget * window){
 
     static gboolean first_execution = TRUE;
+
     int rotationAngleMul = 1;
     int speedMultiplier = 1;
 //cars
@@ -234,9 +277,11 @@ gboolean timer_exe(GtkWidget * window){
 
 }
 
-
+#define WINDOW_WIDTH 1000
+#define WINDOW_HEIGHT 1000
 int main (int argc, char *argv[]){
     tankImage = cairo_image_surface_create_from_png ("tank.png");
+    bulletImage = cairo_image_surface_create_from_png ("bullet.png");
     //XKeyboardControl control; 
     //control.auto_repeat_mode = 0; 
 
@@ -252,19 +297,37 @@ int main (int argc, char *argv[]){
 
     gtk_init(&argc, &argv);
 
-    GtkWidget *window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    //GtkWidget *window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    //GdkWindow *gtk_window = gtk_widget_get_parent_window(window);
+
+    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    
+    gtk_window_set_default_size(GTK_WINDOW(window), 400, 400);  
+    gtk_window_resize(GTK_WINDOW(window), 400, 400);
+
     g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit), NULL);
     g_signal_connect(G_OBJECT(window), "expose_event", G_CALLBACK(on_window_expose_event), NULL);
     g_signal_connect(G_OBJECT(window), "configure_event", G_CALLBACK(on_window_configure_event), NULL);
     g_signal_connect(G_OBJECT (window), "key_press_event", G_CALLBACK (on_key_press), NULL);
     g_signal_connect(G_OBJECT (window), "key_release_event", G_CALLBACK (on_key_press), NULL);
 
+    //gtk_window_set_resizable (GTK_WINDOW(window), FALSE);
+
+    //done initializing
     //this must be done before we define our pixmap so that it can reference
     //the colour depth and such
     gtk_widget_show_all(window);
 
+
+
+
+int new_width, new_height;
+gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
+
+    cout << "Size is " <<  new_width << " " << new_height << "\n" ;
+
     //set up our pixmap so it is ready for drawing
-    pixmap = gdk_pixmap_new(window->window,500,500,-1);
+    pixmap = gdk_pixmap_new(window->window,10,10,-1);
     //because we will be painting our pixmap manually during expose events
     //we can turn off gtk's automatic painting and double buffering routines.
     gtk_widget_set_app_paintable(window, TRUE);
