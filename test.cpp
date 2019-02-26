@@ -27,7 +27,7 @@ bool sDown = false;
 bool spaceDown = false;
 
 GtkWidget *window = NULL;
-int bulletSpeedMultiplier;
+int bulletSpeedMultiplier = 5;
 
 
 double degreeToRad(int degree){
@@ -35,20 +35,21 @@ double degreeToRad(int degree){
 }
 
 class Bullet{
-    int dx;
-    int dy;
-    int x;
-    int y;
     public:
+    double dx;
+    double dy;
+    double x;
+    double y;
+    int angle;
     Bullet(){
-        int angle = rotationAngle;
-        dx = (bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
-        dy = (bulletSpeedMultiplier * sin(degreeToRad(angle) + 3.14159/2));
+        this->angle = rotationAngle;
+        dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
+        dy = -(bulletSpeedMultiplier * sin(degreeToRad(angle) + 3.14159/2));
+
         this->x = tankX;
         this->y = tankY;
     
     }
-
     void update(){
         x += dx;
         y += dy;
@@ -83,6 +84,7 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
                 sDown = true; //Move right
                 break;
             case GDK_space:
+                if(spaceDown) return FALSE;
                 spaceDown = true;
                 fireBullet();
                 break;
@@ -151,15 +153,29 @@ cairo_surface_t *tankImage;
 cairo_surface_t *bulletImage;
 
 static int currently_drawing = 0;
+
+//the drawObj
+void  drawObj(cairo_surface_t *image, int x, int  y,int angle, cairo_surface_t * surface){
+    cairo_t *cr = cairo_create(surface);
+    int tankWidth = cairo_image_surface_get_width (image);
+    int tankHeight = cairo_image_surface_get_height (image);
+
+    cairo_translate (cr, x, y);
+    cairo_rotate (cr, angle  * 3.14159/180);
+    cairo_scale  (cr, 0.15, 0.15);
+    cairo_translate (cr, -tankWidth/2, -tankHeight/2);
+
+    cairo_set_source_surface (cr, image, 0, 0 );
+    cairo_paint (cr);
+    cairo_destroy(cr);
+
+}
 //do_draw will be executed in a separate thread whenever we would like to update
 //our animation
 void *do_draw(void *ptr){
 
     currently_drawing = 1;
 
-
-
-    //carrots
     int width, height;
     gdk_threads_enter();
     gdk_drawable_get_size(pixmap, &width, &height);
@@ -171,10 +187,18 @@ void *do_draw(void *ptr){
 
     cairo_set_source_rgb (cr, 0, 0, 0.0); //Background color
     cairo_paint(cr);// Makes things work right
+    cairo_destroy(cr);
 
 
+    drawObj(tankImage, tankX, tankY, rotationAngle, cst);
+    //carrots
+    //Draw all the bullets:
+    for (auto b : bullets) {
+        drawObj(bulletImage, b->x, b->y, b->angle, cst);
+    }
 
 
+    /*
     int tankWidth = cairo_image_surface_get_width (tankImage);
     int tankHeight = cairo_image_surface_get_height (tankImage);
 
@@ -186,7 +210,9 @@ void *do_draw(void *ptr){
     cairo_set_source_surface (cr, tankImage, 0, 0 );
     cairo_paint (cr);
 
-    cairo_destroy(cr);
+
+    */
+
 
 
     //When dealing with gdkPixmap's, we need to make sure not to
@@ -248,6 +274,10 @@ gboolean timer_exe(GtkWidget * window){
         tankX += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
         tankY += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
 
+    }
+
+    for (auto b : bullets) {
+        b->update();
     }
 
 
