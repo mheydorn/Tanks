@@ -30,6 +30,7 @@ class Tank{
     int rotationAngle = 0;
     int rotationAngleMul = 1;
     int speedMultiplier = 1;
+    bool local = true;
 
     Tank(int x, int y){
     }
@@ -38,6 +39,13 @@ class Tank{
         x = startx;
         y = starty;
     }
+
+    Tank(double startx, double starty, bool local){
+        x = startx;
+        y = starty;
+        this->local = local;
+    }
+
 
     void rotateLeft(){
         rotationAngle -= rotationAngleMul;
