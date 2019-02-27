@@ -36,58 +36,8 @@ static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
 int boxWidth = 10;
-int bulletSpeedMultiplier = 15;
-class Tank{
-    public:
-    double x = 0;
-    double y = 0;
-    int rotationAngle = 0;
-    int rotationAngleMul = 3;
-    int speedMultiplier = 3;
-    bool local = true;
-
-    Tank(int x, int y){
-    }
-
-    Tank(double startx, double starty){
-        x = startx;
-        y = starty;
-    }
-
-    Tank(double startx, double starty, bool local){
-        x = startx;
-        y = starty;
-        this->local = local;
-    }
-
-
-    void rotateLeft(){
-        rotationAngle -= rotationAngleMul;
-        rotationAngle = rotationAngle % 360;
-        cout << "angle = " << rotationAngle << "\n";
-    }
-    void rotateRight(){
-        rotationAngle += rotationAngleMul;
-        rotationAngle = rotationAngle % 360;
-        cout << "angle = " << rotationAngle << "\n";
-    }
-
-    void moveForward(){
-        x += -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        y += -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "xPortion = " << -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        cout << "yPortion = " << -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "tankX = " << x << "\n";
-        cout << "tankY = " << y << "\n";
-    }
-    void moveBackward(){
-        x += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        y += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-    }
-};
+int bulletSpeedMultiplier = 5;
+#include "Tank.cpp"
 
 bool aDown = false;
 bool dDown = false;
@@ -417,8 +367,13 @@ gboolean timer_exe(GtkWidget * window){
 
 }
 
-#define OBJ 0
-#define ACTION 1
+#define COMMAND 0
+#define TANKID 1
+#define MOVETYPE 2
+
+#define ROTATIONINDEX 4
+#define XINDEX 2
+#define YINDEX 3
 
 void handleCommand(char* command){
     cout << "Handle command call for " << command << "\n";
@@ -437,24 +392,35 @@ void handleCommand(char* command){
         cout << "Handle command done early\n";
         return;
     }
+    /*
+    if (parts.at(COMMAND) == "TankMoveCommand"){
+        int tankIndex = parts.at(TANKID)[0] - '0';
+        string action = parts.at(MOVETYPE);
+        Tank* t = tanks.at(tankIndex);
+        if(action == "rl") t->rotateLeft();
+        if(action == "rr") t->rotateRight();
+        if(action == "mf") t->moveForward();
+        if(action == "mb") t->moveBackward();
 
-    char type = parts.at(OBJ)[0];
-    int index = (parts.at(OBJ)[1]) - '0';
-    string action = parts.at(ACTION);
+    }
+    */
+    if (parts.at(COMMAND) == "TankPositionUpdate"){
+        int tankIndex = parts.at(TANKID)[0] - '0';
+        Tank* t = tanks.at(tankIndex);
 
-    switch(type){
-        case 't':
-            {
-                Tank* t = tanks.at(index);
-                
-                if(action == "rl") t->rotateLeft();
-                if(action == "rr") t->rotateRight();
-                if(action == "mf") t->moveForward();
-                if(action == "mb") t->moveBackward();
-                break;
-            }
-        default:
-            break;
+        cout << "convrting this to int " << parts.at(ROTATIONINDEX) << "\n";
+        cout << "convrting this to int " << parts.at(XINDEX) << "\n";
+        cout << "convrting this to int " << parts.at(YINDEX) << "\n";
+        int angle = stoi(parts.at(ROTATIONINDEX));
+        int x = stoi(parts.at(XINDEX));
+        int y = stoi(parts.at(YINDEX));
+
+        t->x = x;
+        t->y = y;
+        t->rotationAngle = angle;
+
+        
+
     }
 
     cout << "Handle command done\n";
@@ -513,11 +479,9 @@ void serverThread(){
         if (numBytesRead > 0){
             cout << buffer << "\n";
             handleCommand(buffer);
-            
         }
     }
 }
-
 
 int main (int argc, char *argv[]){
     std::thread first (serverThread);     // spawn new thread for host listening

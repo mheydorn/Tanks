@@ -37,60 +37,9 @@ double degreeToRad(int degree){
 static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
-
 int boxWidth = 10;
 int bulletSpeedMultiplier = 5;
-class Tank{
-    public:
-    double x = 0;
-    double y = 0;
-    int rotationAngle = 0;
-    int rotationAngleMul = 3;
-    int speedMultiplier = 3;
-    bool local = true;
-
-    Tank(int x, int y){
-    }
-
-    Tank(double startx, double starty){
-        x = startx;
-        y = starty;
-    }
-
-    Tank(double startx, double starty, bool local){
-        x = startx;
-        y = starty;
-        this->local = local;
-    }
-
-
-    void rotateLeft(){
-        rotationAngle -= rotationAngleMul;
-        rotationAngle = rotationAngle % 360;
-        cout << "angle = " << rotationAngle << "\n";
-    }
-    void rotateRight(){
-        rotationAngle += rotationAngleMul;
-        rotationAngle = rotationAngle % 360;
-        cout << "angle = " << rotationAngle << "\n";
-    }
-
-    void moveForward(){
-        x += -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        y += -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "xPortion = " << -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        cout << "yPortion = " << -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "tankX = " << x << "\n";
-        cout << "tankY = " << y << "\n";
-    }
-    void moveBackward(){
-        x += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        y += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-    }
-};
+#include "Tank.cpp"
 
 bool aDown = false;
 bool dDown = false;
@@ -360,24 +309,29 @@ void* do_draw(void *ptr){
 
 gboolean timer_exe(GtkWidget * window){
 
+    //Update Absolute Tank Positions
+    string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[0]->x)) + ":" + to_string((int)(tanks[0]->y)) + ":" + to_string(tanks[0]->rotationAngle) + ":\0";
+    commandQueue->enqueue(commandToSend);
+
+
     static gboolean first_execution = TRUE;
 
     //Update vehicle position and stuff
-
+    
     //For tank 0
     if(aDown){
         tanks[0]->rotateLeft();
-        commandQueue->enqueue("t0:rl:\0");
+        //commandQueue->enqueue("TankMoveCommand:0:rl:\0");
     }else if(dDown){
         tanks[0]->rotateRight();
-        commandQueue->enqueue("t0:rr:\0");
+        //commandQueue->enqueue("TankMoveCommand:0:rr:\0");
     }
     if(wDown){
         tanks[0]->moveForward();
-        commandQueue->enqueue("t0:mf:\0");
+        //commandQueue->enqueue("TankMoveCommand:0:mf:\0");
     }else if(sDown){
         tanks[0]->moveBackward();
-        commandQueue->enqueue("t0:mb:\0");
+        //commandQueue->enqueue("TankMoveCommand:0:mb:\0");
     }
 
     //For tank 1
