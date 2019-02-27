@@ -1,3 +1,4 @@
+
 Following tutorial found here: https://www.cairographics.org/threaded_animation_with_cairo/
 
 
@@ -60,6 +61,8 @@ on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 
 Filter > Color > Color to Alpha
 
+
+for list of keys https://www.rdocumentation.org/packages/RGtk2/versions/2.20.31/topics/gdkKeySyms
 
 
 

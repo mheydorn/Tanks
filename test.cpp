@@ -5,8 +5,18 @@
 #include <iostream>
 #include <math.h>
 #include <list>
+#include <vector>
+
+#define WINDOW_WIDTH 400
+#define WINDOW_HEIGHT 400
 
 using namespace std;
+
+double degreeToRad(int degree){
+    return (2*3.14159 * degree)/(360.0);
+}
+
+
 //the global pixmap that will serve as our buffer
 static GdkPixmap *pixmap = NULL;
 
@@ -17,17 +27,45 @@ class Tank{
     public:
     double x = 0;
     double y = 0;
-    int angle = 0;
-    Tank(){
+    int rotationAngle = 0;
+    int rotationAngleMul = 1;
+    int speedMultiplier = 1;
+
+    Tank(int x, int y){
     }
 
-    
-}
-double tankX,tankY = 0;//tankLocation
-int rotationAngle = 0; // tank rotation
+    Tank(double startx, double starty){
+        x = startx;
+        y = starty;
+    }
 
-int speed = 0;
+    void rotateLeft(){
+        rotationAngle -= rotationAngleMul;
+        rotationAngle = rotationAngle % 360;
+        cout << "angle = " << rotationAngle << "\n";
+    }
+    void rotateRight(){
+        rotationAngle += rotationAngleMul;
+        rotationAngle = rotationAngle % 360;
+        cout << "angle = " << rotationAngle << "\n";
+    }
 
+    void moveForward(){
+        x += -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        y += -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+        cout << "xPortion = " << -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        cout << "yPortion = " << -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+        cout << "tankX = " << x << "\n";
+        cout << "tankY = " << y << "\n";
+    }
+    void moveBackward(){
+        x += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
+        y += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
+
+    }
+};
 
 bool aDown = false;
 bool dDown = false;
@@ -35,16 +73,19 @@ bool wDown = false;
 bool sDown = false;
 bool spaceDown = false;
 
+bool rightDown = false;
+bool leftDown = false;
+bool upDown = false;
+bool downDown = false;
+bool pDown = false;
+
 GtkWidget *window = NULL;
 int bulletSpeedMultiplier = 5;
 int warmupCount = 0;
 
-#define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 400
 
-double degreeToRad(int degree){
-    return (2*3.14159 * degree)/(360.0);
-}
+
+vector<Tank*> tanks;
 
 class Bullet{
     public:
@@ -53,13 +94,13 @@ class Bullet{
     double x;
     double y;
     int angle;
-    Bullet(){
-        this->angle = rotationAngle;
+    Bullet(int tankIndexThatFired){
+        this->angle = tanks[tankIndexThatFired]->rotationAngle;
         dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
         dy = -(bulletSpeedMultiplier * sin(degreeToRad(angle) + 3.14159/2));
 
-        this->x = tankX;
-        this->y = tankY;
+        this->x = tanks[tankIndexThatFired]->x;
+        this->y = tanks[tankIndexThatFired]->y;
     
     }
     void update(){
@@ -71,10 +112,10 @@ class Bullet{
 
 list<Bullet*> bullets;
 
-void fireBullet(){
-    Bullet* b = new Bullet();
-    bullets.push_back(b);
 
+void fireBullet(int tankIndexThatFired){
+    Bullet* b = new Bullet(tankIndexThatFired);
+    bullets.push_back(b);
 }
 
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
@@ -83,22 +124,39 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
         switch (event->keyval)
         {
             case GDK_a:
-                aDown = true; //Move left
+                aDown = true; 
                 break;
             case GDK_d:
-                dDown = true; //Move right
+                dDown = true; 
                 break;
 
             case GDK_w:
-                wDown = true; //Move left
+                wDown = true; 
                 break;
             case GDK_s:
-                sDown = true; //Move right
+                sDown = true; 
+                break;
+            case GDK_Up:
+                upDown = true; 
+                break;
+            case GDK_Down:
+                downDown = true; 
+                break;
+            case GDK_Left:
+                leftDown = true; 
+                break;
+            case GDK_Right:
+                rightDown = true; 
                 break;
             case GDK_space:
                 if(spaceDown) return FALSE;
                 spaceDown = true;
-                fireBullet();
+                fireBullet(0);
+                break;
+            case GDK_p:
+                if(pDown) return FALSE;
+                pDown = true;
+                fireBullet(1);
                 break;
             default:
                 return FALSE; 
@@ -120,6 +178,22 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
                 break;
             case GDK_space:
                 spaceDown = false;
+                break;
+            case GDK_p:
+                pDown = false;
+                break;
+
+            case GDK_Up:
+                upDown = false; //Move right
+                break;
+            case GDK_Down:
+                downDown = false; //Move right
+                break;
+            case GDK_Left:
+                leftDown = false; //Move right
+                break;
+            case GDK_Right:
+                rightDown = false; //Move right
                 break;
 
             default:
@@ -191,9 +265,11 @@ void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char* rgb){
     int index = (y* WINDOW_WIDTH*4 + 4*x);
     unsigned char* data = cairo_image_surface_get_data(cst);
     if (data != NULL){
-        cout << "value at (" << x << "," << y << ") is (" << (int)data[index] << ", " << (int)data[index+1] << ", " << (int)data[index+2] << "," << (int)data[index+3] << ")\n";
+        rgb = data + index;
+    }else{
+        cout << "Error 243212";
     }
-    rgb = data + index;
+
     cairo_surface_mark_dirty(cst);
 }
 
@@ -211,7 +287,7 @@ void* do_draw(void *ptr){
     int width, height;
     gdk_threads_enter();
     gdk_drawable_get_size(pixmap, &width, &height);
-    cout << "width = "  << width << " height = " << height << "\n";
+
 
     gdk_threads_leave();
 
@@ -224,7 +300,8 @@ void* do_draw(void *ptr){
     cairo_destroy(cr);
 
 
-    drawObj(tankImage, tankX, tankY, rotationAngle, cst);
+    drawObj(tankImage, tanks[0]->x, tanks[0]->y, tanks[0]->rotationAngle, cst);
+    drawObj(tankImage, tanks[1]->x, tanks[1]->y, tanks[1]->rotationAngle, cst);
     //carrots
     //Draw all the bullets:
     for (auto b : bullets) {
@@ -260,33 +337,32 @@ gboolean timer_exe(GtkWidget * window){
 
     static gboolean first_execution = TRUE;
 
-    int rotationAngleMul = 1;
-    int speedMultiplier = 1;
-//cars
     //Update vehicle position and stuff
+
+    //For tank 0
     if(aDown){
-        rotationAngle -= rotationAngleMul;
-        cout << "angle = " << rotationAngle << "\n";
+        tanks[0]->rotateLeft();
     }else if(dDown){
-        rotationAngle += rotationAngleMul;
-        cout << "angle = " << rotationAngle << "\n";
+        tanks[0]->rotateRight();
     }
-    rotationAngle = rotationAngle % 360;
-
     if(wDown){
-        tankX += -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        tankY += -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "xPortion = " << -(speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        cout << "yPortion = " << -(speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
-        cout << "tankX = " << tankX << "\n";
-        cout << "tankY = " << tankY << "\n";
+        tanks[0]->moveForward();
     }else if(sDown){
-        tankX += (speedMultiplier * cos(degreeToRad(rotationAngle) + 3.14159/2));
-        tankY += (speedMultiplier * sin(degreeToRad(rotationAngle) + 3.14159/2));
-
+        tanks[0]->moveBackward();
     }
+
+    //For tank 1
+    if(leftDown){
+        tanks[1]->rotateLeft();
+    }else if(rightDown){
+        tanks[1]->rotateRight();
+    }
+    if(upDown){
+        tanks[1]->moveForward();
+    }else if(downDown){
+        tanks[1]->moveBackward();
+    }
+
 
     for (auto b : bullets) {
         b->update();
@@ -320,6 +396,10 @@ gboolean timer_exe(GtkWidget * window){
 }
 
 int main (int argc, char *argv[]){
+    Tank *firstTank = new Tank(200.0, 200.0);
+    Tank *secondTank = new Tank(20.0, 20.0);
+    tanks.push_back(firstTank);
+    tanks.push_back(secondTank);
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
     //XKeyboardControl control; 
