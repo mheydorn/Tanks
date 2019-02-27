@@ -12,13 +12,22 @@
 #include <stdlib.h> 
 #include <netinet/in.h> 
 #include <string.h> 
-#define PORT 8080 
+#include <arpa/inet.h>
+
+#include <thread>         // std::thread
+#include "safeQueue.cpp"
+
+#include <string.h>
+
+#define PORT 8088 
 
 
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
 
 using namespace std;
+
+SafeQueue<string> *commandQueue;
 
 double degreeToRad(int degree){
     return (2*3.14159 * degree)/(360.0);
@@ -29,15 +38,16 @@ double degreeToRad(int degree){
 static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
-int boxWidth = 10;
 
+int boxWidth = 10;
+int bulletSpeedMultiplier = 5;
 class Tank{
     public:
     double x = 0;
     double y = 0;
     int rotationAngle = 0;
-    int rotationAngleMul = 1;
-    int speedMultiplier = 1;
+    int rotationAngleMul = 3;
+    int speedMultiplier = 3;
     bool local = true;
 
     Tank(int x, int y){
@@ -96,7 +106,7 @@ bool downDown = false;
 bool pDown = false;
 
 GtkWidget *window = NULL;
-int bulletSpeedMultiplier = 5;
+
 int warmupCount = 0;
 
 
@@ -358,13 +368,17 @@ gboolean timer_exe(GtkWidget * window){
     //For tank 0
     if(aDown){
         tanks[0]->rotateLeft();
+        commandQueue->enqueue("t0:rl\0");
     }else if(dDown){
         tanks[0]->rotateRight();
+        commandQueue->enqueue("t0:rr\0");
     }
     if(wDown){
         tanks[0]->moveForward();
+        commandQueue->enqueue("t0:mf\0");
     }else if(sDown){
         tanks[0]->moveBackward();
+        commandQueue->enqueue("t0:mb\0");
     }
 
     //For tank 1
@@ -410,9 +424,7 @@ gboolean timer_exe(GtkWidget * window){
     return TRUE;
 
 }
-
-int main (int argc, char *argv[]){
-
+void clientThread(){
     struct sockaddr_in address; 
     int sock = 0, valread; 
     struct sockaddr_in serv_addr; 
@@ -421,7 +433,7 @@ int main (int argc, char *argv[]){
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
     { 
         printf("\n Socket creation error \n"); 
-        return -1; 
+        exit(0); 
     } 
    
     memset(&serv_addr, '0', sizeof(serv_addr)); 
@@ -433,19 +445,28 @@ int main (int argc, char *argv[]){
     if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
     { 
         printf("\nInvalid address/ Address not supported \n"); 
-        return -1; 
+        exit(0); 
     } 
    
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
     { 
         printf("\nConnection Failed \n"); 
-        return -1; 
+        exit(0); 
     } 
-    send(sock , hello , strlen(hello) , 0 ); 
-    printf("Hello message sent\n"); 
-    valread = read( sock , buffer, 1024); 
-    printf("%s\n",buffer ); 
-    return 0; 
+
+    while(1){
+        string command = commandQueue->dequeue();
+        const char* Cstr = command.c_str();
+        send(sock , Cstr , strlen(Cstr), 0 );
+    }
+
+}
+int main (int argc, char *argv[]){
+    commandQueue = new SafeQueue<string>();
+    std::thread first (clientThread);     // spawn new thread for host listening
+
+    commandQueue->enqueue("first");
+
     Tank *firstTank = new Tank(200.0, 200.0);
     Tank *secondTank = new Tank(20.0, 20.0);
     tanks.push_back(firstTank);
@@ -503,7 +524,7 @@ gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
     gtk_widget_set_app_paintable(window, TRUE);
     gtk_widget_set_double_buffered(window, FALSE);
 
-    (void)g_timeout_add(8, (GSourceFunc)timer_exe, window);
+    (void)g_timeout_add(16, (GSourceFunc)timer_exe, window);
 
 
     gtk_main();

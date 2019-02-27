@@ -13,7 +13,13 @@
 #include <stdlib.h> 
 #include <netinet/in.h> 
 #include <string.h> 
-#define PORT 8080 
+
+#include <unistd.h>
+
+#include <thread>         // std::thread
+
+
+#define PORT 8088
 
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
@@ -30,14 +36,14 @@ static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
 int boxWidth = 10;
-
+int bulletSpeedMultiplier = 15;
 class Tank{
     public:
     double x = 0;
     double y = 0;
     int rotationAngle = 0;
-    int rotationAngleMul = 1;
-    int speedMultiplier = 1;
+    int rotationAngleMul = 3;
+    int speedMultiplier = 3;
     bool local = true;
 
     Tank(int x, int y){
@@ -96,7 +102,7 @@ bool downDown = false;
 bool pDown = false;
 
 GtkWidget *window = NULL;
-int bulletSpeedMultiplier = 5;
+
 int warmupCount = 0;
 
 
@@ -411,8 +417,7 @@ gboolean timer_exe(GtkWidget * window){
 
 }
 
-int main (int argc, char *argv[]){
-
+void serverThread(){
     int server_fd, new_socket, valread; 
     struct sockaddr_in address; 
     int opt = 1; 
@@ -456,12 +461,20 @@ int main (int argc, char *argv[]){
         perror("accept"); 
         exit(EXIT_FAILURE); 
     } 
-    valread = read( new_socket , buffer, 1024); 
-    printf("%s\n",buffer ); 
-    send(new_socket , hello , strlen(hello) , 0 ); 
-    printf("Hello message sent\n"); 
-    return 0; 
+    while(1){
+        unsigned microsec = 1000;
+        usleep(microsec);
+        int numBytesRead = read( new_socket , buffer, 256); 
+        printf("%s\n",buffer ); 
+        if (numBytesRead > 0){
+            cout << "\nGot this much data " << numBytesRead << "\n";
+        }
+    }
+}
 
+
+int main (int argc, char *argv[]){
+    std::thread first (serverThread);     // spawn new thread for host listening
 
     Tank *firstTank = new Tank(200.0, 200.0);
     Tank *secondTank = new Tank(20.0, 20.0);
@@ -520,7 +533,7 @@ gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
     gtk_widget_set_app_paintable(window, TRUE);
     gtk_widget_set_double_buffered(window, FALSE);
 
-    (void)g_timeout_add(8, (GSourceFunc)timer_exe, window);
+    (void)g_timeout_add(16, (GSourceFunc)timer_exe, window);
 
 
     gtk_main();
