@@ -206,16 +206,16 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
                 break;
 
             case GDK_Up:
-                upDown = false; //Move right
+                upDown = false; 
                 break;
             case GDK_Down:
-                downDown = false; //Move right
+                downDown = false; 
                 break;
             case GDK_Left:
-                leftDown = false; //Move right
+                leftDown = false; 
                 break;
             case GDK_Right:
-                rightDown = false; //Move right
+                rightDown = false; 
                 break;
 
             default:
@@ -417,6 +417,51 @@ gboolean timer_exe(GtkWidget * window){
 
 }
 
+#define OBJ 0
+#define ACTION 1
+
+void handleCommand(char* command){
+    cout << "Handle command call for " << command << "\n";
+    string s(command);
+    vector<string> parts;
+    string delimiter = ":";
+    size_t pos = 0;
+    while ((pos = s.find(delimiter)) != string::npos) {
+        string token = s.substr(0, pos);
+        parts.push_back(token);
+        cout << "Adding " << token << "\n";
+        s.erase(0, pos + delimiter.length());
+    }
+
+    if (parts.size() < 1){
+        cout << "Handle command done early\n";
+        return;
+    }
+
+    char type = parts.at(OBJ)[0];
+    int index = (parts.at(OBJ)[1]) - '0';
+    string action = parts.at(ACTION);
+
+    switch(type){
+        case 't':
+            {
+                Tank* t = tanks.at(index);
+                
+                if(action == "rl") t->rotateLeft();
+                if(action == "rr") t->rotateRight();
+                if(action == "mf") t->moveForward();
+                if(action == "mb") t->moveBackward();
+                break;
+            }
+        default:
+            break;
+    }
+
+    cout << "Handle command done\n";
+    
+
+}
+
 void serverThread(){
     int server_fd, new_socket, valread; 
     struct sockaddr_in address; 
@@ -465,9 +510,10 @@ void serverThread(){
         unsigned microsec = 1000;
         usleep(microsec);
         int numBytesRead = read( new_socket , buffer, 256); 
-        printf("%s\n",buffer ); 
         if (numBytesRead > 0){
-            cout << "\nGot this much data " << numBytesRead << "\n";
+            cout << buffer << "\n";
+            handleCommand(buffer);
+            
         }
     }
 }

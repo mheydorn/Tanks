@@ -21,7 +21,6 @@
 
 #define PORT 8088 
 
-
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
 
@@ -368,17 +367,17 @@ gboolean timer_exe(GtkWidget * window){
     //For tank 0
     if(aDown){
         tanks[0]->rotateLeft();
-        commandQueue->enqueue("t0:rl\0");
+        commandQueue->enqueue("t0:rl:\0");
     }else if(dDown){
         tanks[0]->rotateRight();
-        commandQueue->enqueue("t0:rr\0");
+        commandQueue->enqueue("t0:rr:\0");
     }
     if(wDown){
         tanks[0]->moveForward();
-        commandQueue->enqueue("t0:mf\0");
+        commandQueue->enqueue("t0:mf:\0");
     }else if(sDown){
         tanks[0]->moveBackward();
-        commandQueue->enqueue("t0:mb\0");
+        commandQueue->enqueue("t0:mb:\0");
     }
 
     //For tank 1
