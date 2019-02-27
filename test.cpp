@@ -12,11 +12,20 @@ static GdkPixmap *pixmap = NULL;
 
 //Global variables are life
 int boxWidth = 10;
+
+class Tank{
+    public:
+    double x = 0;
+    double y = 0;
+    int angle = 0;
+    Tank(){
+    }
+
+    
+}
 double tankX,tankY = 0;//tankLocation
 int rotationAngle = 0; // tank rotation
 
-bool movingLeft = false;
-bool movingRight = false;
 int speed = 0;
 
 
@@ -28,7 +37,10 @@ bool spaceDown = false;
 
 GtkWidget *window = NULL;
 int bulletSpeedMultiplier = 5;
+int warmupCount = 0;
 
+#define WINDOW_WIDTH 400
+#define WINDOW_HEIGHT 400
 
 double degreeToRad(int degree){
     return (2*3.14159 * degree)/(360.0);
@@ -170,15 +182,37 @@ void  drawObj(cairo_surface_t *image, int x, int  y,int angle, cairo_surface_t *
     cairo_destroy(cr);
 
 }
+
+
+
+//gives pixel value in bgra
+void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char* rgb){
+    cairo_surface_flush (cst);
+    int index = (y* WINDOW_WIDTH*4 + 4*x);
+    unsigned char* data = cairo_image_surface_get_data(cst);
+    if (data != NULL){
+        cout << "value at (" << x << "," << y << ") is (" << (int)data[index] << ", " << (int)data[index+1] << ", " << (int)data[index+2] << "," << (int)data[index+3] << ")\n";
+    }
+    rgb = data + index;
+    cairo_surface_mark_dirty(cst);
+}
+
 //do_draw will be executed in a separate thread whenever we would like to update
 //our animation
-void *do_draw(void *ptr){
+void* do_draw(void *ptr){
+
+    warmupCount++;
+    if (warmupCount < 10){
+        return NULL;
+    }
 
     currently_drawing = 1;
 
     int width, height;
     gdk_threads_enter();
     gdk_drawable_get_size(pixmap, &width, &height);
+    cout << "width = "  << width << " height = " << height << "\n";
+
     gdk_threads_leave();
 
     //create a gtk-independant surface to draw on
@@ -197,22 +231,12 @@ void *do_draw(void *ptr){
         drawObj(bulletImage, b->x, b->y, b->angle, cst);
     }
 
+    //box2
 
-    /*
-    int tankWidth = cairo_image_surface_get_width (tankImage);
-    int tankHeight = cairo_image_surface_get_height (tankImage);
-
-    cairo_translate (cr, tankX, tankY);
-    cairo_rotate (cr, rotationAngle  * 3.14159/180);
-    cairo_scale  (cr, 0.15, 0.15);
-    cairo_translate (cr, -tankWidth/2, -tankHeight/2);
-
-    cairo_set_source_surface (cr, tankImage, 0, 0 );
-    cairo_paint (cr);
-
-
-    */
-
+    //Do collision detection
+    unsigned char* rgb;
+    getPixelValue(0, 0, cst, rgb);
+    
 
 
     //When dealing with gdkPixmap's, we need to make sure not to
@@ -225,24 +249,12 @@ void *do_draw(void *ptr){
     cairo_destroy(cr_pixmap);
 
     gdk_threads_leave();
+    currently_drawing = 0;
 
     cairo_surface_destroy(cst);
 
-    currently_drawing = 0;
-
-
-  // Draw the image at 110, 90, except for the outermost 10 pixels.
-    //Gdk::Cairo::set_source_pixbuf(cr, image, 100, 80);
-    //cr->rectangle(110, 90, image->get_width()-20, image->get_height()-20);
-    //cr->fill();
-    //return true;
-
-
     return NULL;
 }
-
-
-
 
 gboolean timer_exe(GtkWidget * window){
 
@@ -307,8 +319,6 @@ gboolean timer_exe(GtkWidget * window){
 
 }
 
-#define WINDOW_WIDTH 1000
-#define WINDOW_HEIGHT 1000
 int main (int argc, char *argv[]){
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
@@ -332,8 +342,8 @@ int main (int argc, char *argv[]){
 
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     
-    gtk_window_set_default_size(GTK_WINDOW(window), 400, 400);  
-    gtk_window_resize(GTK_WINDOW(window), 400, 400);
+    gtk_window_set_default_size(GTK_WINDOW(window), WINDOW_WIDTH, WINDOW_HEIGHT);  
+    gtk_window_resize(GTK_WINDOW(window), WINDOW_WIDTH, WINDOW_HEIGHT);
 
     g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit), NULL);
     g_signal_connect(G_OBJECT(window), "expose_event", G_CALLBACK(on_window_expose_event), NULL);
