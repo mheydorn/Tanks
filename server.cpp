@@ -14,12 +14,24 @@
 #include <netinet/in.h> 
 #include <string.h> 
 
-#include <unistd.h>
+
+#include <errno.h>  
+#include <arpa/inet.h>    //close  
+#include <sys/types.h>  
+#include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
+
+#include "safeQueue.cpp"
+
+//SafeQueue<string>* commandsFromClient;
 
 #include <thread>         // std::thread
 
 
 #define PORT 8088
+
+#define TRUE   1  
+#define FALSE  0  
+
 
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
@@ -271,9 +283,12 @@ void* do_draw(void *ptr){
     cairo_paint(cr);// Makes things work right
     cairo_destroy(cr);
 
+    for(int i = 0; i < tanks.size(); i++){
+        if(tanks[i]->inGame){
+            drawObj(tankImage, tanks[i]->x, tanks[i]->y, tanks[i]->rotationAngle, cst);
+        }
+    }
 
-    drawObj(tankImage, tanks[0]->x, tanks[0]->y, tanks[0]->rotationAngle, cst);
-    drawObj(tankImage, tanks[1]->x, tanks[1]->y, tanks[1]->rotationAngle, cst);
     //carrots
     //Draw all the bullets:
     for (auto b : bullets) {
@@ -310,7 +325,7 @@ gboolean timer_exe(GtkWidget * window){
     static gboolean first_execution = TRUE;
 
     //Update vehicle position and stuff
-
+    /*
     //For tank 0
     if(aDown){
         tanks[0]->rotateLeft();
@@ -334,6 +349,7 @@ gboolean timer_exe(GtkWidget * window){
     }else if(downDown){
         tanks[1]->moveBackward();
     }
+    */
 
 
     for (auto b : bullets) {
@@ -375,8 +391,7 @@ gboolean timer_exe(GtkWidget * window){
 #define XINDEX 2
 #define YINDEX 3
 
-void handleCommand(char* command){
-    cout << "Handle command call for " << command << "\n";
+void handleCommand(char* command, int clientID){
     string s(command);
     vector<string> parts;
     string delimiter = ":";
@@ -384,12 +399,10 @@ void handleCommand(char* command){
     while ((pos = s.find(delimiter)) != string::npos) {
         string token = s.substr(0, pos);
         parts.push_back(token);
-        cout << "Adding " << token << "\n";
         s.erase(0, pos + delimiter.length());
     }
 
     if (parts.size() < 1){
-        cout << "Handle command done early\n";
         return;
     }
     /*
@@ -405,12 +418,9 @@ void handleCommand(char* command){
     }
     */
     if (parts.at(COMMAND) == "TankPositionUpdate"){
-        int tankIndex = parts.at(TANKID)[0] - '0';
+        int tankIndex = clientID;//parts.at(TANKID)[0] - '0';
         Tank* t = tanks.at(tankIndex);
 
-        cout << "convrting this to int " << parts.at(ROTATIONINDEX) << "\n";
-        cout << "convrting this to int " << parts.at(XINDEX) << "\n";
-        cout << "convrting this to int " << parts.at(YINDEX) << "\n";
         int angle = stoi(parts.at(ROTATIONINDEX));
         int x = stoi(parts.at(XINDEX));
         int y = stoi(parts.at(YINDEX));
@@ -420,76 +430,208 @@ void handleCommand(char* command){
         t->rotationAngle = angle;
 
         
-
     }
-
-    cout << "Handle command done\n";
     
-
 }
 
-void serverThread(){
-    int server_fd, new_socket, valread; 
-    struct sockaddr_in address; 
-    int opt = 1; 
-    int addrlen = sizeof(address); 
-    char buffer[1024] = {0}; 
-    char *hello = "Hello from server"; 
-       
-    // Creating socket file descriptor 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) 
-    { 
-        perror("socket failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-       
-    // Forcefully attaching socket to the port 8080 
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, 
-                                                  &opt, sizeof(opt))) 
-    { 
-        perror("setsockopt"); 
-        exit(EXIT_FAILURE); 
-    } 
-    address.sin_family = AF_INET; 
-    address.sin_addr.s_addr = INADDR_ANY; 
-    address.sin_port = htons( PORT ); 
-       
-    // Forcefully attaching socket to the port 8080 
-    if (bind(server_fd, (struct sockaddr *)&address,  
-                                 sizeof(address))<0) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-    if (listen(server_fd, 3) < 0) 
-    { 
-        perror("listen"); 
-        exit(EXIT_FAILURE); 
-    } 
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
-                       (socklen_t*)&addrlen))<0) 
-    { 
-        perror("accept"); 
-        exit(EXIT_FAILURE); 
-    } 
-    while(1){
-        unsigned microsec = 1000;
-        usleep(microsec);
-        int numBytesRead = read( new_socket , buffer, 256); 
-        if (numBytesRead > 0){
-            cout << buffer << "\n";
-            handleCommand(buffer);
-        }
+class Player{
+    public:
+    int id = 0;
+    int tankIndex = 0;
+    bool inGame = true;
+    Player(int index){
+        this->tankIndex = index;
+        this->id = index;
     }
+};
+
+vector<Player*> players;
+
+void serverThread(){
+    int opt = TRUE;   
+    int master_socket , addrlen , new_socket , client_socket[30] ,  
+          max_clients = 30 , activity, i , valread , sd;   
+    int max_sd;   
+    struct sockaddr_in address;   
+         
+    char buffer[1025];  //data buffer of 1K  
+         
+    //set of socket descriptors  
+    fd_set readfds;   
+         
+    //a message  
+    char *message = "ECHO Daemon v1.0 \r\n";   
+     
+    //initialise all client_socket[] to 0 so not checked  
+    for (i = 0; i < max_clients; i++)   
+    {   
+        client_socket[i] = 0;   
+    }   
+         
+    //create a master socket  
+    if( (master_socket = socket(AF_INET , SOCK_STREAM , 0)) == 0)   
+    {   
+        perror("socket failed");   
+        exit(EXIT_FAILURE);   
+    }   
+     
+    //set master socket to allow multiple connections ,  
+    //this is just a good habit, it will work without this  
+    if( setsockopt(master_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt,  
+          sizeof(opt)) < 0 )   
+    {   
+        perror("setsockopt");   
+        exit(EXIT_FAILURE);   
+    }   
+     
+    //type of socket created  
+    address.sin_family = AF_INET;   
+    address.sin_addr.s_addr = INADDR_ANY;   
+    address.sin_port = htons( PORT );   
+         
+    //bind the socket to localhost port 8888  
+    if (bind(master_socket, (struct sockaddr *)&address, sizeof(address))<0)   
+    {   
+        perror("bind failed");   
+        exit(EXIT_FAILURE);   
+    }   
+    printf("Listener on port %d \n", PORT);   
+         
+    //try to specify maximum of 3 pending connections for the master socket  
+    if (listen(master_socket, 3) < 0)   
+    {   
+        perror("listen");   
+        exit(EXIT_FAILURE);   
+    }   
+         
+    //accept the incoming connection  
+    addrlen = sizeof(address);   
+    puts("Waiting for connections ...");   
+         
+    while(TRUE)   
+    {   
+        //clear the socket set  
+        FD_ZERO(&readfds);   
+     
+        //add master socket to set  
+        FD_SET(master_socket, &readfds);   
+        max_sd = master_socket;   
+             
+        //add child sockets to set  
+        for ( i = 0 ; i < max_clients ; i++)   
+        {   
+            //socket descriptor  
+            sd = client_socket[i];   
+                 
+            //if valid socket descriptor then add to read list  
+            if(sd > 0)   
+                FD_SET( sd , &readfds);   
+                 
+            //highest file descriptor number, need it for the select function  
+            if(sd > max_sd)   
+                max_sd = sd;   
+        }   
+     
+        //wait for an activity on one of the sockets , timeout is NULL ,  
+        //so wait indefinitely  
+        activity = select( max_sd + 1 , &readfds , NULL , NULL , NULL);   
+       
+        if ((activity < 0) && (errno!=EINTR))   
+        {   
+            printf("select error");   
+        }   
+             
+        //If something happened on the master socket ,  
+        //then its an incoming connection  
+        if (FD_ISSET(master_socket, &readfds))   
+        {   
+            if ((new_socket = accept(master_socket,  
+                    (struct sockaddr *)&address, (socklen_t*)&addrlen))<0)   
+            {   
+                perror("accept");   
+                exit(EXIT_FAILURE);   
+            }   
+             
+            //inform user of socket number - used in send and receive commands  
+            //printf("New connection , socket fd is %d , ip is : %s , port : %d\n" , new_socket , inet_ntoa(address.sin_addr) , ntohs 
+                  //(address.sin_port));
+
+ 
+            //add new socket to array of sockets  
+            for (i = 0; i < max_clients; i++)   
+            {   
+                //if position is empty  
+                if( client_socket[i] == 0 )   
+                {   
+                    client_socket[i] = new_socket;   
+                    printf("Adding to list of sockets as %d\n" , i);    
+
+
+                    cout << "new player with id=" << i << "\n";
+                    //goto new player
+                    //If new player
+                    if(i >= players.size()){   
+                        Player* newPlayer = new Player(i);
+                        players.push_back(newPlayer);
+
+                        Tank *newTank = new Tank(200.0, 200.0);
+                        tanks.push_back(newTank);
+                    }else{
+                        //It's a player adding back in
+                        players.at(i)->inGame = true;
+                        tanks.at(i)->addBackIntoGame();
+                    }
+
+
+  
+                    break;   
+                }   
+            }   
+        }   
+             
+        //else its some IO operation on some other socket 
+        for (i = 0; i < max_clients; i++)   
+        {   
+            sd = client_socket[i];   
+                 
+            if (FD_ISSET( sd , &readfds))   
+            {   
+                //Check if it was for closing , and also read the  
+                //incoming message  
+                if ((valread = read( sd , buffer, 1024)) == 0)   
+                {   
+                    //Somebody disconnected , get his details and print  
+                    getpeername(sd , (struct sockaddr*)&address , \ 
+                        (socklen_t*)&addrlen);   
+                    printf("Host disconnected , ip %s , port %d \n" ,  
+                          inet_ntoa(address.sin_addr) , ntohs(address.sin_port));   
+                         
+                    //Close the socket and mark as 0 in list for reuse  
+                    close( sd );   
+                    client_socket[i] = 0;   
+                    
+                    //Delete players tank
+                    tanks.at(i)->removeFromGame();
+                }   
+                     
+                //Read incomming message
+                else 
+                {   
+                    //i is the client number
+                    //set the string terminating NULL byte on the end  - should be set already by client
+                    //of the data read  
+                    buffer[valread] = '\0';
+                    handleCommand(buffer, i);
+                }   
+            }   
+        }   
+    }   
+         
 }
 
 int main (int argc, char *argv[]){
     std::thread first (serverThread);     // spawn new thread for host listening
 
-    Tank *firstTank = new Tank(200.0, 200.0);
-    Tank *secondTank = new Tank(20.0, 20.0);
-    tanks.push_back(firstTank);
-    tanks.push_back(secondTank);
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
     //XKeyboardControl control; 
@@ -534,7 +676,7 @@ int main (int argc, char *argv[]){
 int new_width, new_height;
 gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
 
-    cout << "Size is " <<  new_width << " " << new_height << "\n" ;
+    //cout << "Size is " <<  new_width << " " << new_height << "\n" ;
 
     //set up our pixmap so it is ready for drawing
     pixmap = gdk_pixmap_new(window->window,10,10,-1);

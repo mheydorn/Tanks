@@ -6,6 +6,7 @@ class Tank{
     int rotationAngleMul = 2;
     int speedMultiplier = 2;
     bool local = true;
+    bool inGame = true;
 
     Tank(int x, int y){
     }
@@ -19,6 +20,14 @@ class Tank{
         x = startx;
         y = starty;
         this->local = local;
+    }
+
+    void removeFromGame(){
+        inGame = false;
+    }
+
+    void addBackIntoGame(){
+        inGame = true;
     }
 
 

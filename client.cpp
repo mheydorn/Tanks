@@ -273,9 +273,11 @@ void* do_draw(void *ptr){
     cairo_paint(cr);// Makes things work right
     cairo_destroy(cr);
 
-
-    drawObj(tankImage, tanks[0]->x, tanks[0]->y, tanks[0]->rotationAngle, cst);
-    drawObj(tankImage, tanks[1]->x, tanks[1]->y, tanks[1]->rotationAngle, cst);
+    for(int i = 0; i < tanks.size(); i++){
+        if(tanks[i]->inGame){
+            drawObj(tankImage, tanks[i]->x, tanks[i]->y, tanks[i]->rotationAngle, cst);
+        }
+    }
     //carrots
     //Draw all the bullets:
     for (auto b : bullets) {
@@ -334,6 +336,7 @@ gboolean timer_exe(GtkWidget * window){
         //commandQueue->enqueue("TankMoveCommand:0:mb:\0");
     }
 
+    /*
     //For tank 1
     if(leftDown){
         tanks[1]->rotateLeft();
@@ -345,6 +348,7 @@ gboolean timer_exe(GtkWidget * window){
     }else if(downDown){
         tanks[1]->moveBackward();
     }
+    */
 
 
     for (auto b : bullets) {
@@ -421,9 +425,9 @@ int main (int argc, char *argv[]){
     commandQueue->enqueue("first");
 
     Tank *firstTank = new Tank(200.0, 200.0);
-    Tank *secondTank = new Tank(20.0, 20.0);
+    //Tank *secondTank = new Tank(20.0, 20.0);
     tanks.push_back(firstTank);
-    tanks.push_back(secondTank);
+    //tanks.push_back(secondTank);
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
     //XKeyboardControl control; 
