@@ -34,7 +34,7 @@ double degreeToRad(int degree){
     return (2*3.14159 * degree)/(360.0);
 }
 
-
+string ipAddress = "127.0.0.1";
 //the global pixmap that will serve as our buffer
 static GdkPixmap *pixmap = NULL;
 
@@ -391,6 +391,8 @@ gboolean timer_exe(GtkWidget * window){
 
     return TRUE;
 }
+
+
 int sock = -1;
 void clientThread(){
     while(1){
@@ -411,7 +413,7 @@ void clientThread(){
         serv_addr.sin_port = htons(PORT); 
            
         // Convert IPv4 and IPv6 addresses from text to binary form 
-        if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
+        if(inet_pton(AF_INET, ipAddress.c_str() , &serv_addr.sin_addr)<=0)  
         { 
             printf("\nInvalid address/ Address not supported \n"); 
             exit(0); 
@@ -502,9 +504,20 @@ void listenThread(){
     }   
 }
 
-
-
 int main (int argc, char *argv[]){
+
+    string serverIPInput = "";
+    cout << "Enter Server IP or press enter for localhost\n";
+    getline (cin, serverIPInput);
+
+    if (serverIPInput != ""){ 
+        ipAddress = serverIPInput;
+    }
+    
+    cout << "Connecting to " << ipAddress << "\n";
+    
+    
+    
     commandQueue = new SafeQueue<string>();
     std::thread first (clientThread);     // spawn new thread for host listening
     std::thread second (listenThread);     // spawn new thread for host listening
@@ -514,10 +527,7 @@ int main (int argc, char *argv[]){
 
     cout << "Assigned player " << playerID << "\n";
 
-    Tank *firstTank = new Tank(200.0, 200.0);
-    //Tank *secondTank = new Tank(20.0, 20.0);
-    tanks.push_back(firstTank);
-    //tanks.push_back(secondTank);
+
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
     //XKeyboardControl control; 
