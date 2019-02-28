@@ -11,6 +11,9 @@ class Tank{
     Tank(int x, int y){
     }
 
+    Tank(){
+    }
+
     Tank(double startx, double starty){
         x = startx;
         y = starty;

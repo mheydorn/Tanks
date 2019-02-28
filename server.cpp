@@ -447,10 +447,11 @@ class Player{
 
 vector<Player*> players;
 
+int client_socket[30];
+int max_clients = 30;
 void serverThread(){
     int opt = TRUE;   
-    int master_socket , addrlen , new_socket , client_socket[30] ,  
-          max_clients = 30 , activity, i , valread , sd;   
+    int master_socket , addrlen , new_socket , activity, i , valread , sd;   
     int max_sd;   
     struct sockaddr_in address;   
          
@@ -582,6 +583,9 @@ void serverThread(){
                         tanks.at(i)->addBackIntoGame();
                     }
 
+                    string welcomeMessage = "Welcome player :" + to_string(i) + ":!\n";
+                    const char* Cstr = welcomeMessage.c_str();
+                    send(client_socket[i] , Cstr , strlen(Cstr), 0 );
 
   
                     break;   
@@ -612,6 +616,7 @@ void serverThread(){
                     
                     //Delete players tank
                     tanks.at(i)->removeFromGame();
+                    players.at(i)->inGame = false;
                 }   
                      
                 //Read incomming message
@@ -629,8 +634,30 @@ void serverThread(){
          
 }
 
+
+void sendToClientThread(){
+    while(1){
+        for (int i = 0; i < players.size(); i++)   
+        {   
+            if(players[i]->inGame){
+                unsigned microsec = 10000;
+                usleep(microsec);
+                int sd = client_socket[players.at(i)->id];   
+                string message = "I'm talking to you, yes you player" + to_string(players.at(i)->id) + "\n";
+                const char* Cstr = message.c_str();
+                send(sd , Cstr , strlen(Cstr), 0 );
+            }
+        }
+    }   
+}
+
+
+
+
 int main (int argc, char *argv[]){
     std::thread first (serverThread);     // spawn new thread for host listening
+    std::thread second (sendToClientThread);     // spawn new thread for host listening
+
 
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");

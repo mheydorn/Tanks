@@ -57,7 +57,7 @@ GtkWidget *window = NULL;
 
 int warmupCount = 0;
 
-
+bool connected = false;
 
 vector<Tank*> tanks;
 
@@ -379,50 +379,128 @@ gboolean timer_exe(GtkWidget * window){
     first_execution = FALSE;
 
     return TRUE;
-
 }
+int sock = -1;
 void clientThread(){
-    struct sockaddr_in address; 
-    int sock = 0, valread; 
-    struct sockaddr_in serv_addr; 
-    char *hello = "Hello from client"; 
-    char buffer[1024] = {0}; 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    { 
-        printf("\n Socket creation error \n"); 
-        exit(0); 
-    } 
-   
-    memset(&serv_addr, '0', sizeof(serv_addr)); 
-   
-    serv_addr.sin_family = AF_INET; 
-    serv_addr.sin_port = htons(PORT); 
-       
-    // Convert IPv4 and IPv6 addresses from text to binary form 
-    if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
-    { 
-        printf("\nInvalid address/ Address not supported \n"); 
-        exit(0); 
-    } 
-   
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
-    { 
-        printf("\nConnection Failed \n"); 
-        exit(0); 
-    } 
-
     while(1){
-        string command = commandQueue->dequeue();
-        const char* Cstr = command.c_str();
-        send(sock , Cstr , strlen(Cstr), 0 );
+        struct sockaddr_in address; 
+        int valread; 
+        struct sockaddr_in serv_addr; 
+        char *hello = "Hello from client"; 
+        char buffer[1024] = {0}; 
+        if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+        { 
+            printf("\n Socket creation error \n"); 
+            exit(0); 
+        } 
+       
+        memset(&serv_addr, '0', sizeof(serv_addr)); 
+       
+        serv_addr.sin_family = AF_INET; 
+        serv_addr.sin_port = htons(PORT); 
+           
+        // Convert IPv4 and IPv6 addresses from text to binary form 
+        if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)  
+        { 
+            printf("\nInvalid address/ Address not supported \n"); 
+            exit(0); 
+        } 
+       
+        if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
+        { 
+            printf("\Could not connect, trying again in 1 second\n"); 
+            unsigned microsec = 1000000;
+            usleep(microsec);
+        }else{
+            cout << "Connected to server!\n";
+            connected = true;
+            while(1){
+                string command = commandQueue->dequeue();
+                const char* Cstr = command.c_str();
+                send(sock , Cstr , strlen(Cstr), 0 );
+            }
+        }
     }
-
 }
+
+int playerID = -1;
+
+//Handle messages from server
+void handleMessage(string message){
+    vector<string> parts;
+    string delimiter = ":";
+    size_t pos = 0;
+    while ((pos = message.find(delimiter)) != string::npos) {
+        string token = message.substr(0, pos);
+        parts.push_back(token);
+        message.erase(0, pos + delimiter.length());
+    }
+    if (parts.size() < 1){
+        return;
+    }
+    if(parts.at(0) == "Welcome player "){
+        playerID = stoi(parts.at(1));
+    }
+    //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+    if(parts.at(0) == "TankUpdate"){
+        int numTanks = stoi(parts.at(1));
+        for(int i = 0 ; i < numTanks; i++){
+
+            int tankId = stoi(parts.at(2 + i*4));
+            int x = stoi(parts.at(2 + i*4 + 1));
+            int y = stoi(parts.at(2 + i*4 + 2));
+            int angle = stoi(parts.at(2 + i*4 + 3));
+    
+            while(tanks.size() < tankId){   
+                Tank* newTank = new Tank();
+
+                tanks.push_back(newTank); 
+
+            }
+            if(tankId < tanks.size()){
+                Tank* tank = tanks.at(tankId);
+                tank->x = x;
+                tank->y = y;
+                tank->rotationAngle = angle;
+
+            }else{
+                cout << "client does not have enough tanks" << "\n";
+                exit(0);
+            }
+
+        }
+    }
+}
+
+
+
+void listenThread(){
+    char buffer[1024] = {0}; 
+    while(1){
+        if(connected){
+            int len = read( sock , buffer, 1024); 
+            if(len > 0){
+                buffer[len] = '\0';
+                string message(buffer);
+                cout << "Got message from server:" << message << "\n";
+                handleMessage(buffer);
+            }
+        }
+    
+    }   
+}
+
+
+
 int main (int argc, char *argv[]){
     commandQueue = new SafeQueue<string>();
     std::thread first (clientThread);     // spawn new thread for host listening
+    std::thread second (listenThread);     // spawn new thread for host listening
 
-    commandQueue->enqueue("first");
+    while(!connected){}
+    while(playerID == -1){}
+
+    cout << "Assigned player " << playerID << "\n";
 
     Tank *firstTank = new Tank(200.0, 200.0);
     //Tank *secondTank = new Tank(20.0, 20.0);
