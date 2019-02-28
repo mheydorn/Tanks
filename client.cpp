@@ -26,6 +26,8 @@
 
 using namespace std;
 
+int playerID = -1;
+
 SafeQueue<string> *commandQueue;
 
 double degreeToRad(int degree){
@@ -311,8 +313,17 @@ void* do_draw(void *ptr){
 
 gboolean timer_exe(GtkWidget * window){
 
+
+    while(tanks.size() <= playerID){   
+        Tank* newTank = new Tank();
+
+        tanks.push_back(newTank); 
+
+    }
+
+
     //Update Absolute Tank Positions
-    string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[0]->x)) + ":" + to_string((int)(tanks[0]->y)) + ":" + to_string(tanks[0]->rotationAngle) + ":\0";
+    string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[playerID]->x)) + ":" + to_string((int)(tanks[playerID]->y)) + ":" + to_string(tanks[playerID]->rotationAngle) + ":\0";
     commandQueue->enqueue(commandToSend);
 
 
@@ -322,17 +333,17 @@ gboolean timer_exe(GtkWidget * window){
     
     //For tank 0
     if(aDown){
-        tanks[0]->rotateLeft();
+        tanks[playerID]->rotateLeft();
         //commandQueue->enqueue("TankMoveCommand:0:rl:\0");
     }else if(dDown){
-        tanks[0]->rotateRight();
+        tanks[playerID]->rotateRight();
         //commandQueue->enqueue("TankMoveCommand:0:rr:\0");
     }
     if(wDown){
-        tanks[0]->moveForward();
+        tanks[playerID]->moveForward();
         //commandQueue->enqueue("TankMoveCommand:0:mf:\0");
     }else if(sDown){
-        tanks[0]->moveBackward();
+        tanks[playerID]->moveBackward();
         //commandQueue->enqueue("TankMoveCommand:0:mb:\0");
     }
 
@@ -423,7 +434,7 @@ void clientThread(){
     }
 }
 
-int playerID = -1;
+
 
 //Handle messages from server
 void handleMessage(string message){
@@ -445,13 +456,14 @@ void handleMessage(string message){
     if(parts.at(0) == "TankUpdate"){
         int numTanks = stoi(parts.at(1));
         for(int i = 0 ; i < numTanks; i++){
+            if (i == playerID) continue;
 
             int tankId = stoi(parts.at(2 + i*4));
             int x = stoi(parts.at(2 + i*4 + 1));
             int y = stoi(parts.at(2 + i*4 + 2));
             int angle = stoi(parts.at(2 + i*4 + 3));
     
-            while(tanks.size() < tankId){   
+            while(tanks.size() <= tankId){   
                 Tank* newTank = new Tank();
 
                 tanks.push_back(newTank); 
@@ -482,7 +494,7 @@ void listenThread(){
             if(len > 0){
                 buffer[len] = '\0';
                 string message(buffer);
-                cout << "Got message from server:" << message << "\n";
+                //cout << "Got message from server:" << message << "\n";
                 handleMessage(buffer);
             }
         }

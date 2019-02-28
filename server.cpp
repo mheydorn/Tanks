@@ -642,8 +642,13 @@ void sendToClientThread(){
             if(players[i]->inGame){
                 unsigned microsec = 10000;
                 usleep(microsec);
-                int sd = client_socket[players.at(i)->id];   
-                string message = "I'm talking to you, yes you player" + to_string(players.at(i)->id) + "\n";
+                int sd = client_socket[players.at(i)->id];  
+                //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+                string message = "TankUpdate:" + to_string(tanks.size()) + ":";
+                for(int tankID = 0; tankID < tanks.size(); tankID++){
+                    Tank* tank = tanks.at(tankID);
+                    message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
+                }
                 const char* Cstr = message.c_str();
                 send(sd , Cstr , strlen(Cstr), 0 );
             }
