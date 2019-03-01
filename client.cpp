@@ -65,11 +65,13 @@ vector<Tank*> tanks;
 
 class Bullet{
     public:
-    double dx;
-    double dy;
-    double x;
-    double y;
-    int angle;
+    double dx = 0.0;
+    double dy = 0.0;
+    double x= 0;
+    double y = 0;
+    int angle = 0;
+
+    bool valid = true;
     Bullet(int tankIndexThatFired){
         this->angle = tanks[tankIndexThatFired]->rotationAngle;
         dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
@@ -77,13 +79,25 @@ class Bullet{
 
         this->x = tanks[tankIndexThatFired]->x;
         this->y = tanks[tankIndexThatFired]->y;
-    
     }
+
+    Bullet(){
+    }
+
     void update(){
         x += dx;
         y += dy;
+        
+        if( x < 0 || y < 0 || x > 400 || y > 400){
+            valid = false;
+        }
     }
 };
+
+bool is_bullet_valid (const Bullet* value) { 
+    return (!value->valid); 
+}
+
 
 
 list<Bullet*> bullets;
@@ -127,12 +141,11 @@ gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data
             case GDK_space:
                 if(spaceDown) return FALSE;
                 spaceDown = true;
-                fireBullet(0);
+                fireBullet(playerID);
                 break;
             case GDK_p:
                 if(pDown) return FALSE;
                 pDown = true;
-                fireBullet(1);
                 break;
             default:
                 return FALSE; 
@@ -233,8 +246,6 @@ void  drawObj(cairo_surface_t *image, int x, int  y,int angle, cairo_surface_t *
 
 }
 
-
-
 //gives pixel value in bgra
 void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char* rgb){
     cairo_surface_flush (cst);
@@ -316,11 +327,19 @@ gboolean timer_exe(GtkWidget * window){
 
     while(tanks.size() <= playerID){   
         Tank* newTank = new Tank();
-
         tanks.push_back(newTank); 
-
     }
 
+
+    //Tell server about where we think the bullets are
+
+    //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+    string message = "BulletUpdate:" + to_string(bullets.size()) + ":";
+    std::list<Bullet*>::iterator it;
+    for (it = bullets.begin(); it != bullets.end(); ++it){
+        message += to_string(playerID) + ":" + to_string((int)(*it)->x) + ":" + to_string((int)(*it)->y) + ":" + to_string((int)(*it)->angle) + ":";
+    }
+    commandQueue->enqueue(message);
 
     //Update Absolute Tank Positions
     string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[playerID]->x)) + ":" + to_string((int)(tanks[playerID]->y)) + ":" + to_string(tanks[playerID]->rotationAngle) + ":\0";
@@ -362,9 +381,17 @@ gboolean timer_exe(GtkWidget * window){
     */
 
 
+
     for (auto b : bullets) {
         b->update();
     }
+
+    //Remove invalid bullets (wentoff screen)
+    bullets.remove_if (is_bullet_valid);
+
+
+
+
 
 
     //use a safe function to get the value of currently_drawing so
@@ -507,7 +534,7 @@ void listenThread(){
 int main (int argc, char *argv[]){
 
     string serverIPInput = "";
-    cout << "Enter Server IP or press enter for localhost\n";
+    cout << "Enter Server IP or just press enter for localhost\n";
     getline (cin, serverIPInput);
 
     if (serverIPInput != ""){ 
@@ -530,12 +557,6 @@ int main (int argc, char *argv[]){
 
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
-    //XKeyboardControl control; 
-    //control.auto_repeat_mode = 0; 
-
-    //gdk_error_trap_push (); 
-    //XChangeKeyboardControl (GDK_DISPLAY (), KBAutoRepeatMode, &control); 
-    //gdk_error_trap_pop(); 
 
     //we need to initialize all these functions so that gtk knows
     //to be thread-aware
@@ -581,6 +602,7 @@ gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
     gtk_widget_set_app_paintable(window, TRUE);
     gtk_widget_set_double_buffered(window, FALSE);
 
+    //fps
     (void)g_timeout_add(16, (GSourceFunc)timer_exe, window);
 
 

@@ -15,6 +15,9 @@
 #include <string.h> 
 
 
+#include <mutex>
+
+
 #include <errno.h>  
 #include <arpa/inet.h>    //close  
 #include <sys/types.h>  
@@ -36,7 +39,12 @@
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
 
+
 using namespace std;
+
+mutex bulletMtx;
+mutex tankMtx;
+mutex playerMtx;
 
 double degreeToRad(int degree){
     return (2*3.14159 * degree)/(360.0);
@@ -73,11 +81,11 @@ vector<Tank*> tanks;
 
 class Bullet{
     public:
-    double dx;
-    double dy;
-    double x;
-    double y;
-    int angle;
+    double dx = 0.0;
+    double dy = 0.0;
+    double x= 0;
+    double y = 0;
+    int angle = 0;
     Bullet(int tankIndexThatFired){
         this->angle = tanks[tankIndexThatFired]->rotationAngle;
         dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
@@ -85,105 +93,23 @@ class Bullet{
 
         this->x = tanks[tankIndexThatFired]->x;
         this->y = tanks[tankIndexThatFired]->y;
-    
     }
+
+    Bullet(){
+    }
+
     void update(){
         x += dx;
         y += dy;
     }
 };
 
-
 list<Bullet*> bullets;
 
 
-void fireBullet(int tankIndexThatFired){
-    Bullet* b = new Bullet(tankIndexThatFired);
-    bullets.push_back(b);
-}
-
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
-    if(event->type == GDK_KEY_PRESS){
-        switch (event->keyval)
-        {
-            case GDK_a:
-                aDown = true; 
-                break;
-            case GDK_d:
-                dDown = true; 
-                break;
-
-            case GDK_w:
-                wDown = true; 
-                break;
-            case GDK_s:
-                sDown = true; 
-                break;
-            case GDK_Up:
-                upDown = true; 
-                break;
-            case GDK_Down:
-                downDown = true; 
-                break;
-            case GDK_Left:
-                leftDown = true; 
-                break;
-            case GDK_Right:
-                rightDown = true; 
-                break;
-            case GDK_space:
-                if(spaceDown) return FALSE;
-                spaceDown = true;
-                fireBullet(0);
-                break;
-            case GDK_p:
-                if(pDown) return FALSE;
-                pDown = true;
-                fireBullet(1);
-                break;
-            default:
-                return FALSE; 
-        }
-    }else if(event->type == GDK_KEY_RELEASE){
-        switch (event->keyval)
-        {
-            case GDK_a:
-                aDown = false; //Stop move left
-                break;
-            case GDK_d:
-                dDown = false; //Stop move right
-                break;
-            case GDK_w:
-                wDown = false; //Stop move left
-                break;
-            case GDK_s:
-                sDown = false; //Stop move right
-                break;
-            case GDK_space:
-                spaceDown = false;
-                break;
-            case GDK_p:
-                pDown = false;
-                break;
-
-            case GDK_Up:
-                upDown = false; 
-                break;
-            case GDK_Down:
-                downDown = false; 
-                break;
-            case GDK_Left:
-                leftDown = false; 
-                break;
-            case GDK_Right:
-                rightDown = false; 
-                break;
-
-            default:
-                return FALSE; 
-        }
-    }
+   //The server doesn't have any key commands yet
    return FALSE; 
 }
 
@@ -283,17 +209,22 @@ void* do_draw(void *ptr){
     cairo_paint(cr);// Makes things work right
     cairo_destroy(cr);
 
+    tankMtx.lock();
     for(int i = 0; i < tanks.size(); i++){
         if(tanks[i]->inGame){
             drawObj(tankImage, tanks[i]->x, tanks[i]->y, tanks[i]->rotationAngle, cst);
         }
     }
+    tankMtx.unlock();
 
     //carrots
     //Draw all the bullets:
+
+    bulletMtx.lock();
     for (auto b : bullets) {
         drawObj(bulletImage, b->x, b->y, b->angle, cst);
     }
+    bulletMtx.unlock();
 
     //box2
 
@@ -391,8 +322,11 @@ gboolean timer_exe(GtkWidget * window){
 #define XINDEX 2
 #define YINDEX 3
 
+
+bool bulletMutex = false;
 void handleCommand(char* command, int clientID){
     string s(command);
+    string originalCommand(command);
     vector<string> parts;
     string delimiter = ":";
     size_t pos = 0;
@@ -418,6 +352,7 @@ void handleCommand(char* command, int clientID){
     }
     */
     if (parts.at(COMMAND) == "TankPositionUpdate"){
+        tankMtx.lock();
         int tankIndex = clientID;//parts.at(TANKID)[0] - '0';
         Tank* t = tanks.at(tankIndex);
 
@@ -427,10 +362,42 @@ void handleCommand(char* command, int clientID){
 
         t->x = x;
         t->y = y;
-        t->rotationAngle = angle;
-
-        
+        t->rotationAngle = angle;  
+        tankMtx.unlock();
     }
+
+    
+    //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+    if(parts.at(0) == "BulletUpdate"){
+        bulletMtx.lock();
+        int numBullets = stoi(parts.at(1));
+        if(parts.size() <= (numBullets-1)*4 + 2 + 3){
+            cout << "Bad command from client " << originalCommand << "\n";
+            bulletMtx.unlock();
+            return;
+        }
+        bullets.clear();
+        for(int i = 0 ; i < numBullets; i++){
+
+            int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
+            int x = stoi(parts.at(2 + i*4 + 1));
+            int y = stoi(parts.at(2 + i*4 + 2));
+            int angle = stoi(parts.at(2 + i*4 + 3));
+
+            
+            Bullet* newBullet = new Bullet();
+            newBullet->x = (double)x;
+            newBullet->y = (double)y;
+            newBullet->angle = angle;
+            
+            bullets.push_back(newBullet);
+           
+
+        }
+        bulletMtx.unlock();
+    }
+    
+
     
 }
 
@@ -571,18 +538,23 @@ void serverThread(){
                     cout << "new player with id=" << i << "\n";
                     //goto new player
                     //If new player
+                    playerMtx.lock();
                     if(i >= players.size()){   
                         Player* newPlayer = new Player(i);
                         players.push_back(newPlayer);
 
+                        tankMtx.lock();
                         Tank *newTank = new Tank(200.0, 200.0);
                         tanks.push_back(newTank);
+                        tankMtx.unlock();
                     }else{
                         //It's a player adding back in
                         players.at(i)->inGame = true;
+                        tankMtx.lock();
                         tanks.at(i)->addBackIntoGame();
+                        tankMtx.unlock();
                     }
-
+                    playerMtx.unlock();
                     string welcomeMessage = "Welcome player :" + to_string(i) + ":!\n";
                     const char* Cstr = welcomeMessage.c_str();
                     send(client_socket[i] , Cstr , strlen(Cstr), 0 );
@@ -615,8 +587,12 @@ void serverThread(){
                     client_socket[i] = 0;   
                     
                     //Delete players tank
+                    tankMtx.lock();
                     tanks.at(i)->removeFromGame();
+                    tankMtx.unlock();
+                    playerMtx.lock();
                     players.at(i)->inGame = false;
+                    playerMtx.unlock();
                 }   
                      
                 //Read incomming message
@@ -637,22 +613,27 @@ void serverThread(){
 
 void sendToClientThread(){
     while(1){
+        unsigned microsec = 10000;
+        usleep(microsec);
+        playerMtx.lock();
         for (int i = 0; i < players.size(); i++)   
         {   
             if(players[i]->inGame){
-                unsigned microsec = 10000;
-                usleep(microsec);
+
                 int sd = client_socket[players.at(i)->id];  
                 //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+                tankMtx.lock();
                 string message = "TankUpdate:" + to_string(tanks.size()) + ":";
                 for(int tankID = 0; tankID < tanks.size(); tankID++){
                     Tank* tank = tanks.at(tankID);
                     message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
                 }
+                tankMtx.unlock();
                 const char* Cstr = message.c_str();
                 send(sd , Cstr , strlen(Cstr), 0 );
             }
         }
+        playerMtx.unlock();
     }   
 }
 
@@ -666,12 +647,7 @@ int main (int argc, char *argv[]){
 
     tankImage = cairo_image_surface_create_from_png ("tank.png");
     bulletImage = cairo_image_surface_create_from_png ("bullet.png");
-    //XKeyboardControl control; 
-    //control.auto_repeat_mode = 0; 
 
-    //gdk_error_trap_push (); 
-    //XChangeKeyboardControl (GDK_DISPLAY (), KBAutoRepeatMode, &control); 
-    //gdk_error_trap_pop(); 
 
     //we need to initialize all these functions so that gtk knows
     //to be thread-aware
@@ -717,6 +693,7 @@ gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
     gtk_widget_set_app_paintable(window, TRUE);
     gtk_widget_set_double_buffered(window, FALSE);
 
+    //fps
     (void)g_timeout_add(16, (GSourceFunc)timer_exe, window);
 
 
