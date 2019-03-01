@@ -330,7 +330,7 @@ gboolean timer_exe(GtkWidget * window){
         tanks.push_back(newTank); 
     }
 
-
+    //fireBullet(playerID); for constant fire
     //Tell server about where we think the bullets are
 
     //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
@@ -552,6 +552,8 @@ int main (int argc, char *argv[]){
     while(!connected){}
     while(playerID == -1){}
 
+
+
     cout << "Assigned player " << playerID << "\n";
 
 
@@ -590,13 +592,13 @@ int main (int argc, char *argv[]){
 
 
 
-int new_width, new_height;
-gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
+    int new_width, new_height;
+    gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
 
     cout << "Size is " <<  new_width << " " << new_height << "\n" ;
 
     //set up our pixmap so it is ready for drawing
-    pixmap = gdk_pixmap_new(window->window,10,10,-1);
+    pixmap = gdk_pixmap_new(window->window,WINDOW_WIDTH,WINDOW_HEIGHT,-1);
     //because we will be painting our pixmap manually during expose events
     //we can turn off gtk's automatic painting and double buffering routines.
     gtk_widget_set_app_paintable(window, TRUE);

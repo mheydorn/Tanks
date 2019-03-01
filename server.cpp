@@ -59,18 +59,6 @@ int boxWidth = 10;
 int bulletSpeedMultiplier = 5;
 #include "Tank.cpp"
 
-bool aDown = false;
-bool dDown = false;
-bool wDown = false;
-bool sDown = false;
-bool spaceDown = false;
-
-bool rightDown = false;
-bool leftDown = false;
-bool upDown = false;
-bool downDown = false;
-bool pDown = false;
-
 GtkWidget *window = NULL;
 
 int warmupCount = 0;
@@ -282,10 +270,11 @@ gboolean timer_exe(GtkWidget * window){
     }
     */
 
-
+    bulletMtx.lock();
     for (auto b : bullets) {
         b->update();
     }
+    bulletMtx.unlock();
 
 
     //use a safe function to get the value of currently_drawing so
@@ -295,7 +284,7 @@ gboolean timer_exe(GtkWidget * window){
     //if we are not currently drawing anything, launch a thread to
     //update our pixmap
     if(drawing_status == 0){
-        static pthread_t thread_info;
+        static pthread_t thread_info; //this line caues the segfault
         int  iret;
         if(first_execution != TRUE){
             pthread_join(thread_info, NULL);
@@ -681,13 +670,13 @@ int main (int argc, char *argv[]){
 
 
 
-int new_width, new_height;
-gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
+    int new_width, new_height;
+    gtk_window_get_size (GTK_WINDOW(window), &new_width, &new_height);
 
     //cout << "Size is " <<  new_width << " " << new_height << "\n" ;
 
     //set up our pixmap so it is ready for drawing
-    pixmap = gdk_pixmap_new(window->window,10,10,-1);
+    pixmap = gdk_pixmap_new(window->window,WINDOW_WIDTH,WINDOW_HEIGHT,-1);
     //because we will be painting our pixmap manually during expose events
     //we can turn off gtk's automatic painting and double buffering routines.
     gtk_widget_set_app_paintable(window, TRUE);
