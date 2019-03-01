@@ -1,3 +1,4 @@
 ubuntu = sudo apt install libgtk2.0-dev
 
+apt will usually failt, aptitude works but you might have to say no to the first proposed solution and yes to the second
 
