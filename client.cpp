@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 
 #include <thread>         // std::thread
+#include <mutex>
 #include "safeQueue.cpp"
 
 #include <string.h>
@@ -25,6 +26,11 @@
 #define WINDOW_HEIGHT 400
 
 using namespace std;
+
+
+mutex bulletMtx;
+mutex tankMtx;
+mutex playerMtx;
 
 int playerID = -1;
 
@@ -70,6 +76,7 @@ class Bullet{
     double x= 0;
     double y = 0;
     int angle = 0;
+    bool local = true;
 
     bool valid = true;
     Bullet(int tankIndexThatFired){
@@ -98,14 +105,20 @@ bool is_bullet_valid (const Bullet* value) {
     return (!value->valid); 
 }
 
+bool is_bullet_remote (const Bullet* value) { 
+    return (!value->local); 
+}
+
 
 
 list<Bullet*> bullets;
 
 
 void fireBullet(int tankIndexThatFired){
+    bulletMtx.lock();
     Bullet* b = new Bullet(tankIndexThatFired);
     bullets.push_back(b);
+    bulletMtx.unlock();
 }
 
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
@@ -293,10 +306,11 @@ void* do_draw(void *ptr){
     }
     //carrots
     //Draw all the bullets:
+    bulletMtx.lock();
     for (auto b : bullets) {
         drawObj(bulletImage, b->x, b->y, b->angle, cst);
     }
-
+    bulletMtx.unlock();
     //box2
 
     //Do collision detection
@@ -332,13 +346,15 @@ gboolean timer_exe(GtkWidget * window){
 
     //fireBullet(playerID); for constant fire
     //Tell server about where we think the bullets are
-
+    
     //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+    bulletMtx.lock();
     string message = "BulletUpdate:" + to_string(bullets.size()) + ":";
     std::list<Bullet*>::iterator it;
     for (it = bullets.begin(); it != bullets.end(); ++it){
         message += to_string(playerID) + ":" + to_string((int)(*it)->x) + ":" + to_string((int)(*it)->y) + ":" + to_string((int)(*it)->angle) + ":";
     }
+    bulletMtx.unlock();
     commandQueue->enqueue(message);
 
     //Update Absolute Tank Positions
@@ -381,13 +397,14 @@ gboolean timer_exe(GtkWidget * window){
     */
 
 
-
+    bulletMtx.lock();
     for (auto b : bullets) {
         b->update();
     }
 
     //Remove invalid bullets (wentoff screen)
     bullets.remove_if (is_bullet_valid);
+    bulletMtx.unlock();
 
 
 
@@ -511,6 +528,39 @@ void handleMessage(string message){
 
         }
     }
+
+    if(parts.at(0) == "BulletUpdate"){
+        bulletMtx.lock();
+        int numBullets = stoi(parts.at(1));
+        if(parts.size() <= (numBullets-1)*4 + 2 + 3){
+            cout << "Bad command from server \n";
+            bulletMtx.unlock();
+            return;
+        }
+
+        bullets.remove_if (is_bullet_remote);
+        for(int i = 0 ; i < numBullets; i++){
+
+            int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
+            int x = stoi(parts.at(2 + i*4 + 1));
+            int y = stoi(parts.at(2 + i*4 + 2));
+            int angle = stoi(parts.at(2 + i*4 + 3));
+
+            
+            Bullet* newBullet = new Bullet();
+            newBullet->x = (double)x;
+            newBullet->y = (double)y;
+            newBullet->angle = angle;
+            if (owner == -1)newBullet->local = false;
+            
+            bullets.push_back(newBullet);
+           
+
+        }
+        bulletMtx.unlock();
+    }
+
+
 }
 
 

@@ -243,32 +243,6 @@ gboolean timer_exe(GtkWidget * window){
 
     static gboolean first_execution = TRUE;
 
-    //Update vehicle position and stuff
-    /*
-    //For tank 0
-    if(aDown){
-        tanks[0]->rotateLeft();
-    }else if(dDown){
-        tanks[0]->rotateRight();
-    }
-    if(wDown){
-        tanks[0]->moveForward();
-    }else if(sDown){
-        tanks[0]->moveBackward();
-    }
-
-    //For tank 1
-    if(leftDown){
-        tanks[1]->rotateLeft();
-    }else if(rightDown){
-        tanks[1]->rotateRight();
-    }
-    if(upDown){
-        tanks[1]->moveForward();
-    }else if(downDown){
-        tanks[1]->moveBackward();
-    }
-    */
 
     bulletMtx.lock();
     for (auto b : bullets) {
@@ -608,7 +582,7 @@ void sendToClientThread(){
         for (int i = 0; i < players.size(); i++)   
         {   
             if(players[i]->inGame){
-
+                //send tank info to player
                 int sd = client_socket[players.at(i)->id];  
                 //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
                 tankMtx.lock();
@@ -620,6 +594,16 @@ void sendToClientThread(){
                 tankMtx.unlock();
                 const char* Cstr = message.c_str();
                 send(sd , Cstr , strlen(Cstr), 0 );
+
+                //send bullet into to player
+                message = "BulletUpdate:" + to_string(bullets.size()) + ":";
+                for (auto b : bullets){
+                    message += to_string(-1) + ":" + to_string((int)b->x) + ":" + to_string((int)b->y) + ":" + to_string((int)b->angle) + ":";
+                }
+                Cstr = message.c_str();
+                send(sd , Cstr , strlen(Cstr), 0 );
+
+
             }
         }
         playerMtx.unlock();
