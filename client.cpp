@@ -351,6 +351,7 @@ gboolean timer_exe(GtkWidget * window){
     //Tell server about where we think the bullets are
     
     //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+    string tankAndBulletUpdate = "";
     bulletMtx.lock();
     int count = 0;
     string message = "";
@@ -364,12 +365,13 @@ gboolean timer_exe(GtkWidget * window){
     string messageHeader = "BulletUpdate:" + to_string(count) + ":";
     bulletMtx.unlock();
     if (count > 0){
-        commandQueue->enqueue(messageHeader + message);
+        tankAndBulletUpdate += (messageHeader + message + "~");
     }
 
     //Update Absolute Tank Positions
-    string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[playerID]->x)) + ":" + to_string((int)(tanks[playerID]->y)) + ":" + to_string(tanks[playerID]->rotationAngle) + ":\0";
-    commandQueue->enqueue(commandToSend);
+    string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[playerID]->x)) + ":" + to_string((int)(tanks[playerID]->y)) + ":" + to_string(tanks[playerID]->rotationAngle) + ":~";
+    tankAndBulletUpdate += commandToSend;
+    commandQueue->enqueue(tankAndBulletUpdate);
 
 
     static gboolean first_execution = TRUE;
@@ -379,17 +381,13 @@ gboolean timer_exe(GtkWidget * window){
     //For tank 0
     if(aDown){
         tanks[playerID]->rotateLeft();
-        //commandQueue->enqueue("TankMoveCommand:0:rl:\0");
     }else if(dDown){
         tanks[playerID]->rotateRight();
-        //commandQueue->enqueue("TankMoveCommand:0:rr:\0");
     }
     if(wDown){
         tanks[playerID]->moveForward();
-        //commandQueue->enqueue("TankMoveCommand:0:mf:\0");
     }else if(sDown){
         tanks[playerID]->moveBackward();
-        //commandQueue->enqueue("TankMoveCommand:0:mb:\0");
     }
 
     /*

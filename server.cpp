@@ -46,6 +46,19 @@ mutex bulletMtx;
 mutex tankMtx;
 mutex playerMtx;
 
+
+vector<string> parseCommand(string message, string delimiter){
+
+    vector<string> parts;
+    size_t pos = 0;
+    while ((pos = message.find(delimiter)) != string::npos) {
+        string token = message.substr(0, pos);
+        parts.push_back(token);
+        message.erase(0, pos + delimiter.length());
+    }
+    return parts;
+}
+
 double degreeToRad(int degree){
     return (2*3.14159 * degree)/(360.0);
 }
@@ -289,77 +302,63 @@ gboolean timer_exe(GtkWidget * window){
 
 bool bulletMutex = false;
 void handleCommand(char* command, int clientID){
-    string s(command);
+    string allMessages(command);
     string originalCommand(command);
-    vector<string> parts;
-    string delimiter = ":";
-    size_t pos = 0;
-    while ((pos = s.find(delimiter)) != string::npos) {
-        string token = s.substr(0, pos);
-        parts.push_back(token);
-        s.erase(0, pos + delimiter.length());
-    }
 
-    if (parts.size() < 1){
-        return;
-    }
-    /*
-    if (parts.at(COMMAND) == "TankMoveCommand"){
-        int tankIndex = parts.at(TANKID)[0] - '0';
-        string action = parts.at(MOVETYPE);
-        Tank* t = tanks.at(tankIndex);
-        if(action == "rl") t->rotateLeft();
-        if(action == "rr") t->rotateRight();
-        if(action == "mf") t->moveForward();
-        if(action == "mb") t->moveBackward();
+    vector<string> messages = parseCommand(allMessages, "~");
+    for (auto message : messages){
 
-    }
-    */
-    if (parts.at(COMMAND) == "TankPositionUpdate"){
-        tankMtx.lock();
-        int tankIndex = clientID;//parts.at(TANKID)[0] - '0';
-        Tank* t = tanks.at(tankIndex);
-
-        int angle = stoi(parts.at(ROTATIONINDEX));
-        int x = stoi(parts.at(XINDEX));
-        int y = stoi(parts.at(YINDEX));
-
-        t->x = x;
-        t->y = y;
-        t->rotationAngle = angle;  
-        tankMtx.unlock();
-    }
-
-    
-    //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
-    if(parts.at(0) == "BulletUpdate"){
-        bulletMtx.lock();
-        int numBullets = stoi(parts.at(1));
-        if(parts.size() <= (numBullets-1)*4 + 2 + 3){
-            cout << "Bad command from client " << originalCommand << "\n";
-            bulletMtx.unlock();
+        vector<string> parts = parseCommand(message, ":");
+        if (parts.size() < 1){
             return;
         }
-        bullets.clear();
-        for(int i = 0 ; i < numBullets; i++){
 
-            int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
-            int x = stoi(parts.at(2 + i*4 + 1));
-            int y = stoi(parts.at(2 + i*4 + 2));
-            int angle = stoi(parts.at(2 + i*4 + 3));
+        if (parts.at(COMMAND) == "TankPositionUpdate"){
+            tankMtx.lock();
+            int tankIndex = clientID;//parts.at(TANKID)[0] - '0';
+            Tank* t = tanks.at(tankIndex);
 
-            
-            Bullet* newBullet = new Bullet();
-            newBullet->x = (double)x;
-            newBullet->y = (double)y;
-            newBullet->angle = angle;
-            newBullet->playerID = owner;
-            
-            bullets.push_back(newBullet);
-           
+            int angle = stoi(parts.at(ROTATIONINDEX));
+            int x = stoi(parts.at(XINDEX));
+            int y = stoi(parts.at(YINDEX));
 
+            t->x = x;
+            t->y = y;
+            t->rotationAngle = angle;  
+            tankMtx.unlock();
         }
-        bulletMtx.unlock();
+
+        
+        //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+        if(parts.at(0) == "BulletUpdate"){
+            bulletMtx.lock();
+            int numBullets = stoi(parts.at(1));
+            if(parts.size() <= (numBullets-1)*4 + 2 + 3){
+                cout << "Bad command from client " << originalCommand << "\n";
+                bulletMtx.unlock();
+                return;
+            }
+            bullets.clear();
+            for(int i = 0 ; i < numBullets; i++){
+
+                int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
+                int x = stoi(parts.at(2 + i*4 + 1));
+                int y = stoi(parts.at(2 + i*4 + 2));
+                int angle = stoi(parts.at(2 + i*4 + 3));
+
+                
+                Bullet* newBullet = new Bullet();
+                newBullet->x = (double)x;
+                newBullet->y = (double)y;
+                newBullet->angle = angle;
+                newBullet->playerID = owner;
+                
+                bullets.push_back(newBullet);
+               
+
+            }
+            bulletMtx.unlock();
+        }
     }
     
 
