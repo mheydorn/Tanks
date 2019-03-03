@@ -520,7 +520,7 @@ void serverThread(){
                         tankMtx.unlock();
                     }
                     playerMtx.unlock();
-                    string welcomeMessage = "Welcome player :" + to_string(i) + ":!\n";
+                    string welcomeMessage = "Welcome player :" + to_string(i) + ":!\n~";
                     const char* Cstr = welcomeMessage.c_str();
                     send(client_socket[i] , Cstr , strlen(Cstr), 0 );
 
@@ -591,31 +591,29 @@ void sendToClientThread(){
             Tank* tank = tanks.at(tankID);
             message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
         }
-        tankMtx.unlock();
-        const char* Cstr1 = message.c_str();
-        //send(sd , Cstr , strlen(Cstr), 0 );
 
-        const char* Cstr2 = "";
+        tankMtx.unlock();
+
         //This code below slower things down a lot
         if(bullets.size() > 0){
             //send bullet info to player carrots
             bulletMtx.lock();
-            message = "BulletUpdate:" + to_string(bullets.size()) + ":";
+            message += "~BulletUpdate:" + to_string(bullets.size()) + ":";
             for (auto b : bullets){
                 message += to_string(b->playerID) + ":" + to_string((int)b->x) + ":" + to_string((int)b->y) + ":" + to_string((int)b->angle) + ":";
             }
             bulletMtx.unlock();
-            Cstr2 = message.c_str();
-            //send(sd , Cstr , strlen(Cstr), 0 );
         }
+
+        message += "~";
         playerMtx.lock();
+
         for (int i = 0; i < players.size(); i++)   
         {   
             int sd = client_socket[players.at(i)->id];  
             if(players[i]->inGame){
-                //TODO combine these messages for greater speedup
-                send(sd , Cstr1 , strlen(Cstr1), 0 );
-                send(sd , Cstr2 , strlen(Cstr2), 0 );
+                const char* Cstr = message.c_str();
+                send(sd , Cstr , strlen(Cstr), 0);
             }
         }
         playerMtx.unlock();
