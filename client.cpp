@@ -27,6 +27,8 @@
 
 using namespace std;
 
+//TODO fix lag when updateinng bullets and tanks at same time - combine bulletupdate and tankupdate messages into one send() call
+//TODO bug where 2nd client seees 1st client's tank alway in top left corner and can take control of wrong tank - playerIDs gettign messed up with tank updates
 
 mutex bulletMtx;
 mutex tankMtx;
@@ -117,6 +119,7 @@ list<Bullet*> bullets;
 void fireBullet(int tankIndexThatFired){
     bulletMtx.lock();
     Bullet* b = new Bullet(tankIndexThatFired);
+    b->local = true;
     bullets.push_back(b);
     bulletMtx.unlock();
 }
@@ -349,13 +352,20 @@ gboolean timer_exe(GtkWidget * window){
     
     //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
     bulletMtx.lock();
-    string message = "BulletUpdate:" + to_string(bullets.size()) + ":";
+    int count = 0;
+    string message = "";
     std::list<Bullet*>::iterator it;
     for (it = bullets.begin(); it != bullets.end(); ++it){
-        message += to_string(playerID) + ":" + to_string((int)(*it)->x) + ":" + to_string((int)(*it)->y) + ":" + to_string((int)(*it)->angle) + ":";
+        if((*it)->local){
+            message += to_string(playerID) + ":" + to_string((int)(*it)->x) + ":" + to_string((int)(*it)->y) + ":" + to_string((int)(*it)->angle) + ":";
+            count++;
+        }
     }
+    string messageHeader = "BulletUpdate:" + to_string(count) + ":";
     bulletMtx.unlock();
-    commandQueue->enqueue(message);
+    if (count > 0){
+        commandQueue->enqueue(messageHeader + message);
+    }
 
     //Update Absolute Tank Positions
     string commandToSend = "TankPositionUpdate:0:" + to_string((int)(tanks[playerID]->x)) + ":" + to_string((int)(tanks[playerID]->y)) + ":" + to_string(tanks[playerID]->rotationAngle) + ":\0";
@@ -532,6 +542,7 @@ void handleMessage(string message){
     if(parts.at(0) == "BulletUpdate"){
         bulletMtx.lock();
         int numBullets = stoi(parts.at(1));
+        cout << "numBullets = " << numBullets << "\n";
         if(parts.size() <= (numBullets-1)*4 + 2 + 3){
             cout << "Bad command from server \n";
             bulletMtx.unlock();
@@ -540,18 +551,20 @@ void handleMessage(string message){
 
         bullets.remove_if (is_bullet_remote);
         for(int i = 0 ; i < numBullets; i++){
-
+            cout << "iter\n";
             int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
             int x = stoi(parts.at(2 + i*4 + 1));
             int y = stoi(parts.at(2 + i*4 + 2));
             int angle = stoi(parts.at(2 + i*4 + 3));
-
+            if (owner == playerID){cout << "skipping bullet\n";continue;}//Don't get bullet updates for client's own bullets
             
             Bullet* newBullet = new Bullet();
             newBullet->x = (double)x;
             newBullet->y = (double)y;
             newBullet->angle = angle;
-            if (owner == -1)newBullet->local = false;
+            newBullet->local = false;
+            cout << "adding remote bullet\n";
+
             
             bullets.push_back(newBullet);
            

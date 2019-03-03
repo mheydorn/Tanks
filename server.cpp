@@ -74,6 +74,7 @@ class Bullet{
     double x= 0;
     double y = 0;
     int angle = 0;
+    int playerID = -1;
     Bullet(int tankIndexThatFired){
         this->angle = tanks[tankIndexThatFired]->rotationAngle;
         dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
@@ -352,6 +353,7 @@ void handleCommand(char* command, int clientID){
             newBullet->x = (double)x;
             newBullet->y = (double)y;
             newBullet->angle = angle;
+            newBullet->playerID = owner;
             
             bullets.push_back(newBullet);
            
@@ -578,32 +580,42 @@ void sendToClientThread(){
     while(1){
         unsigned microsec = 10000;
         usleep(microsec);
+
+
+        //send tank info to player
+
+        //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
+        tankMtx.lock();
+        string message = "TankUpdate:" + to_string(tanks.size()) + ":";
+        for(int tankID = 0; tankID < tanks.size(); tankID++){
+            Tank* tank = tanks.at(tankID);
+            message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
+        }
+        tankMtx.unlock();
+        const char* Cstr1 = message.c_str();
+        //send(sd , Cstr , strlen(Cstr), 0 );
+
+        const char* Cstr2 = "";
+        //This code below slower things down a lot
+        if(bullets.size() > 0){
+            //send bullet info to player carrots
+            bulletMtx.lock();
+            message = "BulletUpdate:" + to_string(bullets.size()) + ":";
+            for (auto b : bullets){
+                message += to_string(b->playerID) + ":" + to_string((int)b->x) + ":" + to_string((int)b->y) + ":" + to_string((int)b->angle) + ":";
+            }
+            bulletMtx.unlock();
+            Cstr2 = message.c_str();
+            //send(sd , Cstr , strlen(Cstr), 0 );
+        }
         playerMtx.lock();
         for (int i = 0; i < players.size(); i++)   
         {   
+            int sd = client_socket[players.at(i)->id];  
             if(players[i]->inGame){
-                //send tank info to player
-                int sd = client_socket[players.at(i)->id];  
-                //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
-                tankMtx.lock();
-                string message = "TankUpdate:" + to_string(tanks.size()) + ":";
-                for(int tankID = 0; tankID < tanks.size(); tankID++){
-                    Tank* tank = tanks.at(tankID);
-                    message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
-                }
-                tankMtx.unlock();
-                const char* Cstr = message.c_str();
-                send(sd , Cstr , strlen(Cstr), 0 );
-
-                //send bullet into to player
-                message = "BulletUpdate:" + to_string(bullets.size()) + ":";
-                for (auto b : bullets){
-                    message += to_string(-1) + ":" + to_string((int)b->x) + ":" + to_string((int)b->y) + ":" + to_string((int)b->angle) + ":";
-                }
-                Cstr = message.c_str();
-                send(sd , Cstr , strlen(Cstr), 0 );
-
-
+                //TODO combine these messages for greater speedup
+                send(sd , Cstr1 , strlen(Cstr1), 0 );
+                send(sd , Cstr2 , strlen(Cstr2), 0 );
             }
         }
         playerMtx.unlock();
