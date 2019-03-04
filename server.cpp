@@ -39,6 +39,8 @@
 #define WINDOW_WIDTH 400
 #define WINDOW_HEIGHT 400
 
+#define TANK_IMAGE "tank.png"
+#define BULLET_IMAGE "bullet.png"
 
 using namespace std;
 
@@ -653,8 +655,8 @@ int main (int argc, char *argv[]){
     std::thread second (sendToClientThread);     // spawn new thread for host listening
 
 
-    tankImage = cairo_image_surface_create_from_png ("tank.png");
-    bulletImage = cairo_image_surface_create_from_png ("bullet.png");
+    tankImage = cairo_image_surface_create_from_png (TANK_IMAGE);
+    bulletImage = cairo_image_surface_create_from_png (BULLET_IMAGE);
 
 
     //we need to initialize all these functions so that gtk knows
