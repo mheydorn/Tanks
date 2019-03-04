@@ -7,6 +7,8 @@ class Tank{
     int speedMultiplier = 2;
     bool local = true;
     bool inGame = true;
+    int rsquared = 2304;
+    int playerID = -1;
 
     Tank(int x, int y){
     }

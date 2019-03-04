@@ -79,7 +79,7 @@ class Bullet{
     double y = 0;
     int angle = 0;
     bool local = true;
-
+    int rsquared = 10;
     bool valid = true;
     Bullet(int tankIndexThatFired){
         this->angle = tanks[tankIndexThatFired]->rotationAngle;
@@ -373,7 +373,6 @@ gboolean timer_exe(GtkWidget * window){
     tankAndBulletUpdate += commandToSend;
     commandQueue->enqueue(tankAndBulletUpdate);
 
-
     static gboolean first_execution = TRUE;
 
     //Update vehicle position and stuff
@@ -390,21 +389,6 @@ gboolean timer_exe(GtkWidget * window){
         tanks[playerID]->moveBackward();
     }
 
-    /*
-    //For tank 1
-    if(leftDown){
-        tanks[1]->rotateLeft();
-    }else if(rightDown){
-        tanks[1]->rotateRight();
-    }
-    if(upDown){
-        tanks[1]->moveForward();
-    }else if(downDown){
-        tanks[1]->moveBackward();
-    }
-    */
-
-
     bulletMtx.lock();
     for (auto b : bullets) {
         b->update();
@@ -413,9 +397,6 @@ gboolean timer_exe(GtkWidget * window){
     //Remove invalid bullets (wentoff screen)
     bullets.remove_if (is_bullet_valid);
     bulletMtx.unlock();
-
-
-
 
 
 
@@ -504,7 +485,6 @@ vector<string> parseCommand(string message, string delimiter){
 void handleMessage(string allMessages){
 
     vector<string> messages = parseCommand(allMessages, "~");
-    cout << "command is" << allMessages << "\n";
     for (auto message : messages){
 
         vector<string> parts = parseCommand(message, ":");

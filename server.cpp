@@ -88,6 +88,7 @@ class Bullet{
     double y = 0;
     int angle = 0;
     int playerID = -1;
+    int rsquared = 10;
     Bullet(int tankIndexThatFired){
         this->angle = tanks[tankIndexThatFired]->rotationAngle;
         dx = -(bulletSpeedMultiplier * cos(degreeToRad(angle) + 3.14159/2));
@@ -253,16 +254,39 @@ void* do_draw(void *ptr){
     return NULL;
 }
 
+#include <cstdlib>
+
+void registerTankBulletHit(int t, Bullet* b){
+    cout << "tank " << t << " hit by bullet " << b->playerID << "\n";
+}
+
+void collisionCheck(){
+    bulletMtx.lock();
+    tankMtx.lock();
+    //Between tank and bullet
+    for(auto b : bullets){
+        for(int t = 0; t < tanks.size(); t++){
+            if(b->playerID != tanks[t]->playerID){
+                int distSquaredThreshold = b->rsquared + tanks[t]->rsquared;
+                int distSquared = (b->x - tanks[t]->x)*(b->x - tanks[t]->x) + (b->y - tanks[t]->y)*(b->y - tanks[t]->y);
+                if(distSquared < distSquaredThreshold){
+                    registerTankBulletHit(t, b);
+                }
+            }
+        }
+        
+    }
+    bulletMtx.unlock();
+    tankMtx.unlock();
+}
+
 gboolean timer_exe(GtkWidget * window){
 
     static gboolean first_execution = TRUE;
 
 
-    bulletMtx.lock();
-    for (auto b : bullets) {
-        b->update();
-    }
-    bulletMtx.unlock();
+
+    
 
 
     //use a safe function to get the value of currently_drawing so
@@ -351,13 +375,14 @@ void handleCommand(char* command, int clientID){
                 newBullet->x = (double)x;
                 newBullet->y = (double)y;
                 newBullet->angle = angle;
-                newBullet->playerID = owner;
+                newBullet->playerID = clientID;
                 
                 bullets.push_back(newBullet);
                
 
             }
             bulletMtx.unlock();
+            collisionCheck();
         }
     }
     
@@ -509,6 +534,7 @@ void serverThread(){
 
                         tankMtx.lock();
                         Tank *newTank = new Tank(200.0, 200.0);
+                        newTank->playerID = i;
                         tanks.push_back(newTank);
                         tankMtx.unlock();
                     }else{
