@@ -78,7 +78,7 @@ GtkWidget *window = NULL;
 
 int warmupCount = 0;
 
-
+//Tank rbg = 0 127 14 
 
 vector<Tank*> tanks;
 
@@ -173,21 +173,103 @@ void  drawObj(cairo_surface_t *image, int x, int  y,int angle, cairo_surface_t *
 }
 
 
-
 //gives pixel value in bgra
-void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char* rgb){
+void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char rgba[4]){
     cairo_surface_flush (cst);
     int index = (y* WINDOW_WIDTH*4 + 4*x);
     unsigned char* data = cairo_image_surface_get_data(cst);
     if (data != NULL){
-        rgb = data + index;
+        rgba[0] = (data + index)[2];
+        rgba[1] = (data + index)[1];
+        rgba[2] = (data + index)[0];
+        rgba[3] = (data + index)[3];
+        
     }else{
         cout << "Error 243212";
     }
-
+    
     cairo_surface_mark_dirty(cst);
 }
 
+
+#include <cstdlib>
+
+void registerTankBulletHit(int t, Bullet* b){
+    cout << "tank " << t << " hit by bullet " << b->playerID << "\n";
+}
+
+#define BULLET_R 0
+#define BULLET_G 255
+#define BULLET_B 30
+
+//Tank = 0 127 14 255
+#define TANK_R 0
+#define TANK_G 127
+#define TANK_B 14
+
+
+void collisionBitmapCheck(int t, Bullet* b, cairo_surface_t *cst){
+    //Grab bitmap near tank
+    
+    //Check for bullets inside of tank (bullet pixels touching tank pixels)
+    //    void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char* rgb){
+    //real carrots
+    int width = 40;
+
+    unsigned char rgb[4];
+    for(int i = tanks[t]->x - width; i < tanks[t]->x + width; i++){
+        for(int j = tanks[t]->y - width; j < tanks[t]->y + width; j++){
+                if(i < 1 || i >= WINDOW_WIDTH -1 || j < 1 || j >= WINDOW_WIDTH - 1){
+                    continue;
+                }
+
+                getPixelValue(i, j, cst, rgb);
+                int red = (int)rgb[0];
+                int green = (int)rgb[1];
+                int blue = (int)rgb[2];
+
+                if(green == BULLET_G){
+                    unsigned char left[4];
+                    getPixelValue(i-2, j, cst, left);
+                    int red = (int)left[0];
+                    int green = (int)left[1];
+                    int blue = (int)left[2];
+                    if(green == TANK_G){
+                        //There's a bullet pixel touching a tank pixel
+                        registerTankBulletHit(t, b);
+                    }
+                }
+            }
+    }
+
+    
+    
+
+}
+
+void collisionCheck(cairo_surface_t *cst){
+    bulletMtx.lock();
+    tankMtx.lock();
+    //Between tank and bullet
+    for(auto b : bullets){
+        for(int t = 0; t < tanks.size(); t++){
+            if(b->playerID != tanks[t]->playerID){
+                int distSquaredThreshold = b->rsquared + tanks[t]->rsquared;
+                int distSquared = (b->x - tanks[t]->x)*(b->x - tanks[t]->x) + (b->y - tanks[t]->y)*(b->y - tanks[t]->y);
+                if(distSquared < distSquaredThreshold){
+                    collisionBitmapCheck(t, b, cst);
+                    //registerTankBulletHit(t, b);
+                }
+            }
+        }
+        
+    }
+    bulletMtx.unlock();
+    tankMtx.unlock();
+}
+
+
+int ss = 0;
 //do_draw will be executed in a separate thread whenever we would like to update
 //our animation
 void* do_draw(void *ptr){
@@ -234,9 +316,22 @@ void* do_draw(void *ptr){
     //box2
 
     //Do collision detection
-    unsigned char* rgb;
-    getPixelValue(0, 0, cst, rgb);
-    
+
+    unsigned char rgba[4];
+
+    //getPixelValue(200,200 , cst, rgba);
+    //unsigned red = (unsigned)rgb[0];
+    //unsigned green = (unsigned)rgb[1];
+    //unsigned blue = (unsigned)rgb[2];
+
+    //cout << "Center pixel value rgb " <<(int)rgba[0] << " " << (int)rgba[1] << " " << (int)rgba[2] << " " << (int)rgba[3] << "\n";
+
+
+
+
+
+
+    collisionCheck(cst);
 
 
     //When dealing with gdkPixmap's, we need to make sure not to
@@ -256,31 +351,6 @@ void* do_draw(void *ptr){
     return NULL;
 }
 
-#include <cstdlib>
-
-void registerTankBulletHit(int t, Bullet* b){
-    cout << "tank " << t << " hit by bullet " << b->playerID << "\n";
-}
-
-void collisionCheck(){
-    bulletMtx.lock();
-    tankMtx.lock();
-    //Between tank and bullet
-    for(auto b : bullets){
-        for(int t = 0; t < tanks.size(); t++){
-            if(b->playerID != tanks[t]->playerID){
-                int distSquaredThreshold = b->rsquared + tanks[t]->rsquared;
-                int distSquared = (b->x - tanks[t]->x)*(b->x - tanks[t]->x) + (b->y - tanks[t]->y)*(b->y - tanks[t]->y);
-                if(distSquared < distSquaredThreshold){
-                    registerTankBulletHit(t, b);
-                }
-            }
-        }
-        
-    }
-    bulletMtx.unlock();
-    tankMtx.unlock();
-}
 
 gboolean timer_exe(GtkWidget * window){
 
@@ -384,7 +454,6 @@ void handleCommand(char* command, int clientID){
 
             }
             bulletMtx.unlock();
-            collisionCheck();
         }
     }
     
@@ -621,7 +690,6 @@ void sendToClientThread(){
 
         tankMtx.unlock();
 
-        //This code below slower things down a lot
         if(bullets.size() > 0){
             //send bullet info to player carrots
             bulletMtx.lock();

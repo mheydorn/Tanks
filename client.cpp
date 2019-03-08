@@ -316,11 +316,7 @@ void* do_draw(void *ptr){
     bulletMtx.unlock();
     //box2
 
-    //Do collision detection
-    unsigned char* rgb;
-    getPixelValue(0, 0, cst, rgb);
-    
-
+   
 
     //When dealing with gdkPixmap's, we need to make sure not to
     //access them from outside gtk_main().
@@ -528,7 +524,6 @@ void handleMessage(string allMessages){
         if(parts.at(0) == "BulletUpdate"){
             bulletMtx.lock();
             int numBullets = stoi(parts.at(1));
-            cout << "numBullets = " << numBullets << "\n";
             if(parts.size() <= (numBullets-1)*4 + 2 + 3){
                 cout << "Bad command from server \n";
                 bulletMtx.unlock();
@@ -537,7 +532,7 @@ void handleMessage(string allMessages){
 
             bullets.remove_if (is_bullet_remote);
             for(int i = 0 ; i < numBullets; i++){
-                cout << "iter\n";
+
                 int owner = stoi(parts.at(2 + i*4)); //Ignoring this for now - will use later to know which player bullet came from to know who get's the point
                 int x = stoi(parts.at(2 + i*4 + 1));
                 int y = stoi(parts.at(2 + i*4 + 2));
@@ -549,7 +544,6 @@ void handleMessage(string allMessages){
                 newBullet->y = (double)y;
                 newBullet->angle = angle;
                 newBullet->local = false;
-                cout << "adding remote bullet\n";
 
                 
                 bullets.push_back(newBullet);
