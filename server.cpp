@@ -42,6 +42,9 @@
 #define TANK_IMAGE "tank.png"
 #define BULLET_IMAGE "bullet.png"
 
+#define MAX_PLAYERS 10
+int playerScores[MAX_PLAYERS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+
 using namespace std;
 
 mutex bulletMtx;
@@ -196,6 +199,7 @@ void getPixelValue(int x, int y, cairo_surface_t *cst, unsigned char rgba[4]){
 
 void registerTankBulletHit(int t, Bullet* b){
     cout << "tank " << t << " hit by bullet " << b->playerID << "\n";
+    playerScores[b->playerID] += 1;
 }
 
 #define BULLET_R 0
@@ -288,8 +292,7 @@ void drawText(cairo_surface_t *surface, const char *utf8, int x, int y, int angl
 
 }
 
-#define MAX_PLAYERS 10
-int playerScores[MAX_PLAYERS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+
 
 void drawScores(cairo_surface_t *surface){
     int i = 0;
@@ -347,10 +350,10 @@ void* do_draw(void *ptr){
         }
     }
 
-
-
-
     tankMtx.unlock();
+
+    drawScores(cst);
+
 
     //carrots
     //Draw all the bullets:
@@ -373,8 +376,6 @@ void* do_draw(void *ptr){
 
     //cout << "Center pixel value rgb " <<(int)rgba[0] << " " << (int)rgba[1] << " " << (int)rgba[2] << " " << (int)rgba[3] << "\n";
 
-    playerScores[0] = 234;
-    playerScores[1] = 343;
     drawScores(cst);
 
 
@@ -650,7 +651,7 @@ void serverThread(){
                     if(i >= players.size()){   
                         Player* newPlayer = new Player(i);
                         players.push_back(newPlayer);
-
+                        playerScores[i] = 0;
                         tankMtx.lock();
                         Tank *newTank = new Tank(200.0, 200.0);
                         newTank->playerID = i;
@@ -726,8 +727,7 @@ void sendToClientThread(){
         usleep(microsec);
 
 
-        //send tank info to player
-
+        //send tank info to players
         //TankUpdate:len:id:x:y:angle:id:x:y:angle:etc
         tankMtx.lock();
         string message = "TankUpdate:" + to_string(tanks.size()) + ":";
@@ -735,9 +735,9 @@ void sendToClientThread(){
             Tank* tank = tanks.at(tankID);
             message += to_string(tankID) + ":" + to_string((int)tank->x) + ":" + to_string((int)tank->y) + ":" + to_string((int)tank->rotationAngle) + ":";
         }
-
         tankMtx.unlock();
 
+        //Send bullet info to players
         if(bullets.size() > 0){
             //send bullet info to player carrots
             bulletMtx.lock();
@@ -748,6 +748,13 @@ void sendToClientThread(){
             bulletMtx.unlock();
         }
 
+        //Send scores to players
+        message += "~ScoreUpdate:" + to_string(MAX_PLAYERS) + ":";
+        for (int ii = 0; ii < MAX_PLAYERS; ii++){
+            message += to_string(playerScores[ii]) + ":";
+        }
+
+        //Send concatenated messages
         message += "~";
         playerMtx.lock();
 

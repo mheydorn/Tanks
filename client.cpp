@@ -46,6 +46,12 @@ string ipAddress = "127.0.0.1";
 //the global pixmap that will serve as our buffer
 static GdkPixmap *pixmap = NULL;
 
+
+#define MAX_PLAYERS 10
+int playerScores[MAX_PLAYERS] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+
+
+
 //Global variables are life
 int boxWidth = 10;
 int bulletSpeedMultiplier = 5;
@@ -123,6 +129,52 @@ void fireBullet(int tankIndexThatFired){
     bullets.push_back(b);
     bulletMtx.unlock();
 }
+
+
+double textRed = 255.0;
+double textGreen = 0;
+double textBlue = 0;
+double textSize = 25.0;
+
+void drawText(cairo_surface_t *surface, const char *utf8, int x, int y, int angle = 0){
+    cairo_t *cr = cairo_create(surface);
+
+    cairo_text_extents_t te;
+    cairo_set_source_rgb (cr, textRed, textGreen, textBlue);
+    cairo_select_font_face (cr, "Georgia", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size (cr, textSize);
+    cairo_text_extents (cr, utf8, &te);
+    cairo_move_to (cr, x - te.width / 2 - te.x_bearing, y - te.height / 2 - te.y_bearing);
+    cairo_show_text (cr, utf8);
+
+    cairo_destroy(cr);
+
+}
+
+
+
+void drawScores(cairo_surface_t *surface){
+    int i = 0;
+
+    int padLeft = 0;
+
+    int numActivePlayers = 0;
+    for(int i = 0; i < MAX_PLAYERS; i++){
+        if(playerScores[i] == -1){break;}
+        numActivePlayers++;
+    }
+
+    int spaceBetween = WINDOW_WIDTH/(numActivePlayers + 1);
+
+    while(1){
+        if (playerScores[i] == -1){break;}
+        string s = to_string(playerScores[i]);
+        const char *pchar = s.c_str();
+        drawText(surface, pchar, spaceBetween + i*spaceBetween, textSize, 0);
+        i++;
+    }
+}
+
 
 gboolean on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
@@ -315,7 +367,7 @@ void* do_draw(void *ptr){
     }
     bulletMtx.unlock();
     //box2
-
+    drawScores(cst);
    
 
     //When dealing with gdkPixmap's, we need to make sure not to
@@ -518,6 +570,12 @@ void handleMessage(string allMessages){
                     exit(0);
                 }
 
+            }
+        }
+        if(parts.at(0) == "ScoreUpdate"){
+            int numScores = stoi(parts.at(1));
+            for(int ii = 0; ii < numScores; ii++){
+                playerScores[ii] = stoi(parts.at(ii + 2));
             }
         }
 
